@@ -1,0 +1,73 @@
+---
+title: "Report"
+output: pdf_document
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+source("evaluation.R", local = knitr::knit_global())
+```
+
+# Evaluation
+
+## Hypothesis
+
+Artists prefer (wrt perceived workload and focusability)
+- an incremental rendering method to a denoiser, which updates the whole screen at once, when editing small objects
+- a denoiser to an incremental method when editing light sources, as light changes often affect the entire scene
+(exploratory evaluation for large objects)
+
+## Study Design
+
+- We evaluated two incremental methods (noisy and denoised) by comparing them to the AI-accelerated Optix Denoiser, which is widely supported in industrial rendering engines and thus familiar to artists.
+- consisting of three parts: tutorial, task-based evaluation, general+demographic questions
+- Three scenes: bathroom for tutorial, kitchen and living room for task-based evaluation
+- Tutorial:
+  - bathroom scene
+  - four tasks (move single/multiple, change material/light) to explore all needed features of the system
+  - Theoretical Background showing videos of 1spp and converged rendering with 4096spp + Optix
+- Task-based Evaluation:
+  - kitchen and living room scene
+  - split into small objects (4 subtasks, 2 transformation, 2 material edits), large objects (3 subtasks, 2 transformation, 1 material edits) and lights (3 subtasks, 2 global, 1 local)
+  - standardized Nasa-TLX questionnaire + two own questions assessing focus and distraction
+  - changed scale after a small pilot study with four participants as they were confused about compared to what they should rate the methods
+  - for incremental methods we asked which rendering parameters (Tile Quality/Size, Threshold) they changed and which settings they preferred
+  - random order of the methods switching between Denoiser or Incremental methods (Incremental methods fixed to first noisy then denoised); fixed order of tasks
+- General questions:
+  - Videos showing all 3 methods again in the bathroom scene, asking overall preference
+  - Net Promoter Score like question asking how likely participants would buy the respective rendering method as a feature in a rendering tool
+  - Demographic Questions about study population (Experience level of the participants via hours working with rendering applications and categorical student/professional, Age and gender)
+  - Which engines they used before and in which field of work; how often they use a path traced rendering view for scene editing and for which reasons not; which denoiser they typically use
+- voice/screen recorded, speech-to-text via OpenAIs whisper; participants were asked to voice their thoughts during the study; structured interview at the end (why do they prefer the stated method, future relevance of path tracing in their field of work)
+- survey implemented as self-hosted drupal webform
+- in person/online (remote controll via parsec or running on own hardware)
+
+## Results
+
+21 Participants ()
+
+```{r}
+get_summary_stats(data_tlx_sum, type = "full")
+get_summary_stats(data_tlx_diff_a_b, type = "full")
+get_summary_stats(data_tlx_diff_a_c, type = "full")
+get_summary_stats(data_tlx_diff_c_b_abs, type = "full")
+get_summary_stats(data_tlx_diff_a_fav, type = "full")
+tlx_favorites_freq
+summary(tlx_favorites)
+```
+
+```{r echo=FALSE, fig.width=15,fig.height=9}
+acc_grid
+```
+
+![](plots/differences.png)
+
+![](plots/anova.png){width=75%}
+
+
+![](plots/preference.png){width=45%} ![](plots/nps.png){width=45%}
+
+![](plots/fav_assoc.pdf){width=45%} ![](plots/residuals.pdf){width=45%}
+
+## Discussion
