@@ -19,7 +19,7 @@ Open `Framework/Falcor.sln`, select `ReleaseD3D12` as build configuration and se
 
 We hid parts of the UI during the User Study. To view the full UI set `DEBUG_UI` to 1 in `Falcor/Core/FalcorConfig.h`.
 
-# Structure
+### Structure
 
 Our main contribution to the Falcor Framework are the `InteractionPass` and `OutlinePass`, as well as the reduction compute shader `Reduce.slang` in the `MegakernelPathTracer`.
 
