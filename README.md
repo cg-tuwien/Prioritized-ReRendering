@@ -1,6 +1,5 @@
 # Real-Time Editing of Path-Traced Scenes with Prioritized Re-Rendering
-
-TODO: Link to paper
+[Paper](https://www.cg.tuwien.ac.at/research/publications/2024/ulschmid-2024-reo/)
 
 ## Framework Setup
 
