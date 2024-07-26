@@ -268,6 +268,7 @@ namespace Falcor
 
         // Create the window
         mpWindow = Window::create(config.windowDesc, this);
+        mpWindow->setWindowPos(320,180);
 
         // Show the progress bar (unless window is minimized)
         ProgressBar::SharedPtr pBar;

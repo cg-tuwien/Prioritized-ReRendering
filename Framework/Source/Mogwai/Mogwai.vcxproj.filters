@@ -65,4 +65,7 @@
       <Filter>Data</Filter>
     </None>
   </ItemGroup>
+  <ItemGroup>
+    <CopyFileToFolders Include="..\Externals\tobii\lib\tobii_research.dll" />
+  </ItemGroup>
 </Project>

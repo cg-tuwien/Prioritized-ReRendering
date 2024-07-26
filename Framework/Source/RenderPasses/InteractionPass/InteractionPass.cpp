@@ -60,7 +60,7 @@ extern "C" FALCOR_API_EXPORT void getPasses(Falcor::RenderPassLibrary & lib)
 
 InteractionPass::SharedPtr InteractionPass::create(RenderContext* pRenderContext, const Dictionary& dict)
 {
-    SharedPtr pPass = SharedPtr(new InteractionPass);
+    SharedPtr pPass = SharedPtr(new InteractionPass());
     return pPass;
 }
 
@@ -76,6 +76,80 @@ InteractionPass::InteractionPass() : RenderPass(kInfo)
         throw std::exception("Raytracing Tier 1.1 is not supported by the current device");
     }
     mRenderUI = true;
+
+    TobiiResearchStatus status;
+
+    status = tobii_research_find_all_eyetrackers(&mEyetrackers);
+    if (status != TOBII_RESEARCH_STATUS_OK) {
+        printf("Finding trackers failed. Error: %d\n", status);
+    }
+
+    printf("Found %d Eye Trackers \n\n", (int)mEyetrackers->count);
+
+    tobii_research_subscribe_to_notifications(mEyetrackers->eyetrackers[0], notification_callback, NULL);
+
+    TobiiResearchDisplayArea display_area;
+    status = tobii_research_get_display_area(mEyetrackers->eyetrackers[0], &display_area);
+
+    char* serial_number = NULL;
+    tobii_research_get_serial_number(mEyetrackers->eyetrackers[0], &serial_number);
+
+    printf("Got display area from tracker with serial number %s with status %i:\n", serial_number, status);
+    tobii_research_free_string(serial_number);
+
+    printf("Bottom Left: (%f, %f, %f)\n",
+        display_area.bottom_left.x,
+        display_area.bottom_left.y,
+        display_area.bottom_left.z);
+    printf("Bottom Right: (%f, %f, %f)\n",
+        display_area.bottom_right.x,
+        display_area.bottom_right.y,
+        display_area.bottom_right.z);
+    printf("Height: %f\n", display_area.height);
+    printf("Top Left: (%f, %f, %f)\n",
+        display_area.top_left.x,
+        display_area.top_left.y,
+        display_area.top_left.z);
+    printf("Top Right: (%f, %f, %f)\n",
+        display_area.top_right.x,
+        display_area.top_right.y,
+        display_area.top_right.z);
+    printf("Width: %f\n", display_area.width);
+
+    int64_t system_time_stamp;
+    status = tobii_research_get_system_time_stamp(&system_time_stamp);
+
+    printf("The system time stamp in microseconds is %" PRId64 " with status %i.\n", system_time_stamp, status);
+
+    mGazeData = new TobiiResearchGazeData();
+    
+    status = tobii_research_subscribe_to_gaze_data(mEyetrackers->eyetrackers[0], gaze_data_callback, mGazeData);
+    if (status != TOBII_RESEARCH_STATUS_OK) {
+        printf("Subscribing to Gaze Data failed. Error: %d\n", status);
+    }
+
+    float initial_gaze_output_frequency;
+    status = tobii_research_get_gaze_output_frequency(mEyetrackers->eyetrackers[0], &initial_gaze_output_frequency);
+    printf("The eye tracker's initial gaze output frequency is %f Hz with status %i.\n",
+        initial_gaze_output_frequency, status);
+
+    TobiiResearchGazeOutputFrequencies* frequencies = NULL;
+    status = tobii_research_get_all_gaze_output_frequencies(mEyetrackers->eyetrackers[0], &frequencies);
+
+    if (status == TOBII_RESEARCH_STATUS_OK) {
+        for (int i = 0; i < frequencies->frequency_count; i++) {
+            status = tobii_research_set_gaze_output_frequency(mEyetrackers->eyetrackers[0], frequencies->frequencies[i]);
+            printf("Gaze output frequency set to %f Hz with status %i.\n", frequencies->frequencies[i], status);
+        }
+        tobii_research_set_gaze_output_frequency(mEyetrackers->eyetrackers[0], initial_gaze_output_frequency);
+
+        printf("Gaze output frequency reset to %f Hz.\n", initial_gaze_output_frequency);
+    }
+    else {
+        printf("tobii_research_get_all_gaze_output_frequencies returned status %i.\n", status);
+    }
+
+    tobii_research_free_gaze_output_frequencies(frequencies);
 }
 
 RenderPassReflection InteractionPass::reflect(const CompileData& compileData)
@@ -138,6 +212,8 @@ void InteractionPass::setScene(RenderContext* pRenderContext, const Scene::Share
         mpScene->addViewpoint(float3(3.102161, 3.026642, 0.337517), float3(2.275490, 2.513116, 0.107504), float3(0.000000, 1.000000, 0.000000), 0);
         mpScene->addViewpoint(float3(-0.592427, 1.122877, -0.771308), float3(-1.527504, 1.311737, -1.071247), float3(0.002599, 0.999996, 0.000832), 0);
         mpScene->selectViewpoint(0);
+
+        //find_all_eyetrackers_example();
     }
 }
 
@@ -185,8 +261,6 @@ void InteractionPass::execute(RenderContext* pRenderContext, const RenderData& r
                 auto roti = glm::mat4(transform[0] / currentObj.mScaling[0], transform[1] / currentObj.mScaling[1], transform[2] / currentObj.mScaling[2], transform[3]);
                 currentObj.mRotation = glm::eulerAngles(glm::quat_cast(roti));
 
-                setSelectedPixelToObjectCenter();
-
                 //update prev objects position
                 for (int i = 0; i < selectedObj.size(); i++)
                 {
@@ -196,6 +270,7 @@ void InteractionPass::execute(RenderContext* pRenderContext, const RenderData& r
                 }
 
                 selectedObj.push_back(currentObj);
+                setSelectedPixelToObjectCenter();
 
                 mTranslation.add(currentObj.mTranslation, (float)selectedObj.size());
                 mRotation.add(currentObj.mRotation, (float)selectedObj.size());
@@ -220,6 +295,7 @@ void InteractionPass::execute(RenderContext* pRenderContext, const RenderData& r
         //Set parameters for path-tracer
         if (mUserChangedScene)
         {
+            // TODO: add eye tracking
             if (selectedObj.size() > 0)
             {
                 setSelectedPixelToObjectCenter();

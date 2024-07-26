@@ -29,7 +29,69 @@
 #include "Falcor.h"
 #include "SharedTypes.slang"
 
+#include "tobii_research.h"
+#include "tobii_research_eyetracker.h"
+#include "tobii_research_streams.h"
+
 using namespace Falcor;
+
+void gaze_data_callback(TobiiResearchGazeData* gaze_data, void* user_data) {
+    printf("gaze\n");
+    memcpy(user_data, gaze_data, sizeof(*gaze_data));
+};
+
+void notification_callback(TobiiResearchNotification* notification, void* user_data) {
+
+    if (TOBII_RESEARCH_NOTIFICATION_CALIBRATION_MODE_ENTERED == notification->notification_type) {
+        printf("Enter calibration mode notification received at time stamp %" PRId64 ".\n", notification->system_time_stamp);
+    }
+
+    if (TOBII_RESEARCH_NOTIFICATION_CALIBRATION_MODE_LEFT == notification->notification_type) {
+        printf("Left calibration mode notification received at time stamp %" PRId64 ".\n", notification->system_time_stamp);
+    }
+
+    if (TOBII_RESEARCH_NOTIFICATION_CALIBRATION_CHANGED == notification->notification_type) {
+        printf("Calibration changed notification received at time stamp %" PRId64 ".\n", notification->system_time_stamp);
+    }
+
+    if (TOBII_RESEARCH_NOTIFICATION_CONNECTION_LOST == notification->notification_type) {
+        printf("Connection lost notification received at time stamp %" PRId64 ".\n", notification->system_time_stamp);
+    }
+
+    if (TOBII_RESEARCH_NOTIFICATION_CONNECTION_RESTORED == notification->notification_type) {
+        printf("Connection restored notification received at time stamp %" PRId64 ".\n", notification->system_time_stamp);
+    }
+
+    if (TOBII_RESEARCH_NOTIFICATION_DEVICE_FAULTS == notification->notification_type) {
+        printf("Device faults notification received at time stamp %" PRId64 ".\n %s \n", notification->system_time_stamp, notification->value.text);
+    }
+
+    if (TOBII_RESEARCH_NOTIFICATION_DEVICE_WARNINGS == notification->notification_type) {
+        printf("Device warnings notification received at time stamp %" PRId64 ".\n", notification->system_time_stamp);
+    }
+
+    if (TOBII_RESEARCH_NOTIFICATION_DISPLAY_AREA_CHANGED == notification->notification_type) {
+        printf("Display area changed notification received at time stamp %" PRId64 ".\n", notification->system_time_stamp);
+    }
+
+    if (TOBII_RESEARCH_NOTIFICATION_EYE_TRACKING_MODE_CHANGED == notification->notification_type) {
+        printf("Eye tracking mode changed notification received at time stamp %" PRId64 ".\n", notification->system_time_stamp);
+    }
+
+    if (TOBII_RESEARCH_NOTIFICATION_GAZE_OUTPUT_FREQUENCY_CHANGED == notification->notification_type) {
+        printf("Gaze output frequency changed notification received at time stamp %" PRId64 ".\n", notification->system_time_stamp);
+    }
+
+    if (TOBII_RESEARCH_NOTIFICATION_TRACK_BOX_CHANGED == notification->notification_type) {
+        printf("Track box changed notification received at time stamp %" PRId64 ".\n", notification->system_time_stamp);
+    }
+
+    if (TOBII_RESEARCH_NOTIFICATION_UNKNOWN == notification->notification_type) {
+        printf("Unknown notification received at time stamp %" PRId64 ".\n", notification->system_time_stamp);
+    }
+
+    (void)(user_data); // Is NULL, see subscription call
+};
 
 class InteractionPass : public RenderPass
 {
@@ -65,6 +127,27 @@ public:
         return mAnimate;
     }
     void stopAnimation() { mAnimate = false; }
+
+    void shutdown() {
+        TobiiResearchStatus status;
+        status = tobii_research_unsubscribe_from_gaze_data(mEyetrackers->eyetrackers[0], gaze_data_callback);
+        printf("Unsubscribed from gaze data with status %i.\n", status);
+
+        printf("Last received gaze package:\n");
+        printf("System time stamp: %"  PRId64 "\n", mGazeData->system_time_stamp);
+        printf("Device time stamp: %"  PRId64 "\n", mGazeData->device_time_stamp);
+        printf("Left eye 2D gaze point on display area: (%f, %f)\n",
+            mGazeData->left_eye.gaze_point.position_on_display_area.x,
+            mGazeData->left_eye.gaze_point.position_on_display_area.y);
+        printf("Right eye 3d gaze origin in user coordinates (%f, %f, %f)\n",
+            mGazeData->right_eye.gaze_origin.position_in_user_coordinates.x,
+            mGazeData->right_eye.gaze_origin.position_in_user_coordinates.y,
+            mGazeData->right_eye.gaze_origin.position_in_user_coordinates.z);
+
+        tobii_research_unsubscribe_from_notifications(mEyetrackers->eyetrackers[0], notification_callback);
+        
+        tobii_research_free_eyetrackers(mEyetrackers);
+    };
 
 private:
     InteractionPass();
@@ -123,4 +206,7 @@ private:
     TransformMultiple mTranslation;
     TransformMultiple mScaling;
     TransformMultiple mRotation;
+
+    TobiiResearchEyeTrackers* mEyetrackers;
+    TobiiResearchGazeData* mGazeData;
 };

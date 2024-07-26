@@ -75,6 +75,8 @@ namespace Mogwai
 
     void Renderer::onShutdown()
     {
+        InteractionPass::SharedPtr ip = std::dynamic_pointer_cast<InteractionPass>(mGraphs[mActiveGraph].pGraph->getPass("InteractionPass"));
+        ip->shutdown();
         resetEditor();
         gpDevice->flushAndSync(); // Need to do that because clearing the graphs will try to release some state objects which might be in use
         mGraphs.clear();
