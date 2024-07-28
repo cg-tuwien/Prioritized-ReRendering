@@ -86,70 +86,74 @@ InteractionPass::InteractionPass() : RenderPass(kInfo)
 
     printf("Found %d Eye Trackers \n\n", (int)mEyetrackers->count);
 
-    tobii_research_subscribe_to_notifications(mEyetrackers->eyetrackers[0], notification_callback, NULL);
+    mEyetrackingEnabled = mEyetrackers->count > 0;
 
-    TobiiResearchDisplayArea display_area;
-    status = tobii_research_get_display_area(mEyetrackers->eyetrackers[0], &display_area);
+    if (mEyetrackingEnabled) {
+        tobii_research_subscribe_to_notifications(mEyetrackers->eyetrackers[0], notification_callback, NULL);
 
-    char* serial_number = NULL;
-    tobii_research_get_serial_number(mEyetrackers->eyetrackers[0], &serial_number);
+        TobiiResearchDisplayArea display_area;
+        status = tobii_research_get_display_area(mEyetrackers->eyetrackers[0], &display_area);
 
-    printf("Got display area from tracker with serial number %s with status %i:\n", serial_number, status);
-    tobii_research_free_string(serial_number);
+        char* serial_number = NULL;
+        tobii_research_get_serial_number(mEyetrackers->eyetrackers[0], &serial_number);
 
-    printf("Bottom Left: (%f, %f, %f)\n",
-        display_area.bottom_left.x,
-        display_area.bottom_left.y,
-        display_area.bottom_left.z);
-    printf("Bottom Right: (%f, %f, %f)\n",
-        display_area.bottom_right.x,
-        display_area.bottom_right.y,
-        display_area.bottom_right.z);
-    printf("Height: %f\n", display_area.height);
-    printf("Top Left: (%f, %f, %f)\n",
-        display_area.top_left.x,
-        display_area.top_left.y,
-        display_area.top_left.z);
-    printf("Top Right: (%f, %f, %f)\n",
-        display_area.top_right.x,
-        display_area.top_right.y,
-        display_area.top_right.z);
-    printf("Width: %f\n", display_area.width);
+        printf("Got display area from tracker with serial number %s with status %i:\n", serial_number, status);
+        tobii_research_free_string(serial_number);
 
-    int64_t system_time_stamp;
-    status = tobii_research_get_system_time_stamp(&system_time_stamp);
+        printf("Bottom Left: (%f, %f, %f)\n",
+            display_area.bottom_left.x,
+            display_area.bottom_left.y,
+            display_area.bottom_left.z);
+        printf("Bottom Right: (%f, %f, %f)\n",
+            display_area.bottom_right.x,
+            display_area.bottom_right.y,
+            display_area.bottom_right.z);
+        printf("Height: %f\n", display_area.height);
+        printf("Top Left: (%f, %f, %f)\n",
+            display_area.top_left.x,
+            display_area.top_left.y,
+            display_area.top_left.z);
+        printf("Top Right: (%f, %f, %f)\n",
+            display_area.top_right.x,
+            display_area.top_right.y,
+            display_area.top_right.z);
+        printf("Width: %f\n", display_area.width);
 
-    printf("The system time stamp in microseconds is %" PRId64 " with status %i.\n", system_time_stamp, status);
+        int64_t system_time_stamp;
+        status = tobii_research_get_system_time_stamp(&system_time_stamp);
 
-    mGazeData = new TobiiResearchGazeData();
-    
-    status = tobii_research_subscribe_to_gaze_data(mEyetrackers->eyetrackers[0], gaze_data_callback, mGazeData);
-    if (status != TOBII_RESEARCH_STATUS_OK) {
-        printf("Subscribing to Gaze Data failed. Error: %d\n", status);
-    }
+        printf("The system time stamp in microseconds is %" PRId64 " with status %i.\n", system_time_stamp, status);
 
-    float initial_gaze_output_frequency;
-    status = tobii_research_get_gaze_output_frequency(mEyetrackers->eyetrackers[0], &initial_gaze_output_frequency);
-    printf("The eye tracker's initial gaze output frequency is %f Hz with status %i.\n",
-        initial_gaze_output_frequency, status);
+        mGazeData = new TobiiResearchGazeData();
 
-    TobiiResearchGazeOutputFrequencies* frequencies = NULL;
-    status = tobii_research_get_all_gaze_output_frequencies(mEyetrackers->eyetrackers[0], &frequencies);
-
-    if (status == TOBII_RESEARCH_STATUS_OK) {
-        for (int i = 0; i < frequencies->frequency_count; i++) {
-            status = tobii_research_set_gaze_output_frequency(mEyetrackers->eyetrackers[0], frequencies->frequencies[i]);
-            printf("Gaze output frequency set to %f Hz with status %i.\n", frequencies->frequencies[i], status);
+        status = tobii_research_subscribe_to_gaze_data(mEyetrackers->eyetrackers[0], gaze_data_callback, mGazeData);
+        if (status != TOBII_RESEARCH_STATUS_OK) {
+            printf("Subscribing to Gaze Data failed. Error: %d\n", status);
         }
-        tobii_research_set_gaze_output_frequency(mEyetrackers->eyetrackers[0], initial_gaze_output_frequency);
 
-        printf("Gaze output frequency reset to %f Hz.\n", initial_gaze_output_frequency);
-    }
-    else {
-        printf("tobii_research_get_all_gaze_output_frequencies returned status %i.\n", status);
-    }
+        float initial_gaze_output_frequency;
+        status = tobii_research_get_gaze_output_frequency(mEyetrackers->eyetrackers[0], &initial_gaze_output_frequency);
+        printf("The eye tracker's initial gaze output frequency is %f Hz with status %i.\n",
+            initial_gaze_output_frequency, status);
 
-    tobii_research_free_gaze_output_frequencies(frequencies);
+        TobiiResearchGazeOutputFrequencies* frequencies = NULL;
+        status = tobii_research_get_all_gaze_output_frequencies(mEyetrackers->eyetrackers[0], &frequencies);
+
+        if (status == TOBII_RESEARCH_STATUS_OK) {
+            for (int i = 0; i < frequencies->frequency_count; i++) {
+                status = tobii_research_set_gaze_output_frequency(mEyetrackers->eyetrackers[0], frequencies->frequencies[i]);
+                printf("Gaze output frequency set to %f Hz with status %i.\n", frequencies->frequencies[i], status);
+            }
+            tobii_research_set_gaze_output_frequency(mEyetrackers->eyetrackers[0], initial_gaze_output_frequency);
+
+            printf("Gaze output frequency reset to %f Hz.\n", initial_gaze_output_frequency);
+        }
+        else {
+            printf("tobii_research_get_all_gaze_output_frequencies returned status %i.\n", status);
+        }
+
+        tobii_research_free_gaze_output_frequencies(frequencies);
+    }
 }
 
 RenderPassReflection InteractionPass::reflect(const CompileData& compileData)
@@ -242,7 +246,7 @@ void InteractionPass::execute(RenderContext* pRenderContext, const RenderData& r
         pRenderContext->flush(false);
         mpFence->gpuSignal(pRenderContext->getLowLevelData()->getCommandQueue());
 
-        
+
         if (mRightMouseClicked)
         {
             assert(mpPixelDataStaging);
@@ -460,7 +464,7 @@ void InteractionPass::renderUI(Gui::Widgets& widget)
                     oss << "Curve ID: " << selectedObj[0].mpPixelData.curveID << std::endl
                         << "Curve instance ID: " << selectedObj[0].mpPixelData.curveInstanceID << std::endl
                         << "Material ID: " << selectedObj[0].mpPixelData.materialID << std::endl;
-                }
+        }
 #endif
             }
             else if (selectedObj.size() > 1)

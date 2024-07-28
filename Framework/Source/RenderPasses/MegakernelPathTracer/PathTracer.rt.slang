@@ -47,6 +47,7 @@ RWTexture2D<float4> gOutputColor;
 RWTexture2D<float4> gOutputAlbedo;
 RWTexture2D<uint> gOutputTime;
 Texture2D<int2> gPixelMap;
+RWTexture2D<float4> gTestColor;
 
 //INPUT
 cbuffer PerFrameCB
@@ -163,10 +164,15 @@ void rayGen()
    
 
     uint2 targetPixel = targetBlock * TILE_SIZE + pixel%TILE_SIZE;
+    float selectedObjectHit = 0.f;
 
     if (loadShadingData(targetPixel, frameDim, gScene.camera, lod, sd, hit))
     {
         // Pixel represents a primary hit. Compute its contribution.
+        if (hit.getTriangleHit().instanceID.index == 40)
+        {
+            selectedObjectHit = 1.f;
+        }
 
         // Create BSDF instance and query its properties.
         let bsdf = gScene.materials.getBSDF(sd, lod);
@@ -232,6 +238,7 @@ void rayGen()
     // These are all optional so using compile-time checks to decide which ones to write.
     if (is_valid(gOutputColor)) gOutputColor[pixel] = float4(outColor, outAlpha);
     if (is_valid(gOutputAlbedo)) gOutputAlbedo[pixel] = float4(outAlbedo, 1);
+    if (is_valid(gTestColor)) gTestColor[pixel] = float4(selectedObjectHit,0.f,0.f,1.f);
 
     // Write time.
     if (is_valid(gOutputTime)) gOutputTime[pixel] = timer.getElapsed();

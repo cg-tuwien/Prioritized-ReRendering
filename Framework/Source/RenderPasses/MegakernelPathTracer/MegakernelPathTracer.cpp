@@ -56,12 +56,14 @@ namespace
     const std::string kColorOutput = "color";
     const std::string kAlbedoOutput = "albedo";
     const std::string kTimeOutput = "time";
+    const std::string kTestColor = "test";
 
     const Falcor::ChannelList kOutputChannels =
     {
         { kColorOutput,     "gOutputColor",               "Output color (linear)", true /* optional */, ResourceFormat::RGBA32Float },
         { kAlbedoOutput,    "gOutputAlbedo",              "Surface albedo (base color) or background color", true /* optional */, ResourceFormat::RGBA32Float },
         { kTimeOutput,      "gOutputTime",                "Per-pixel execution time", true /* optional */, ResourceFormat::R32Uint },
+        { kTestColor,      "gTestColor",                "Per-pixel hit", true /* optional */, ResourceFormat::RGBA32Float },
     };
 
     const Gui::DropdownList kRepValList =
@@ -143,6 +145,11 @@ void MegakernelPathTracer::setScene(RenderContext* pRenderContext, const Scene::
         uint2 gridDim = uint2(uint2(1920 + tileSize - 1, 1080 + tileSize - 1) / uint2(tileSize, tileSize));
         blockTex = Texture::create2D(gridDim.x, gridDim.y, Falcor::ResourceFormat::RG32Uint, 1, 1);
         reduceTex = Texture::create2D(1920, 1080, Falcor::ResourceFormat::RGBA32Float, 1, 1, 0, Falcor::ResourceBindFlags::UnorderedAccess);
+        std::vector<float4> testInit;
+        for (int i = 0; i < 1920 * 1080; i++) testInit.push_back(float4(0, 1, 0, 1));
+        testColor = Texture::create2D(1920, 1080, Falcor::ResourceFormat::RGBA32Float, 1, 1, testInit.data(), Resource::BindFlags::UnorderedAccess | Resource::BindFlags::ShaderResource);
+        FALCOR_ASSERT(testColor);
+        testColor->setName("MegakernelPathTracer.test");
 
         emptyUpdates = std::vector<int2>(gridDim.x * gridDim.y, int2(-1, -1));
 
@@ -283,6 +290,11 @@ void MegakernelPathTracer::execute(RenderContext* pRenderContext, const RenderDa
     setTracerData(renderData);
 
     // Bind I/O buffers. These needs to be done per-frame as the buffers may change anytime.
+
+    mTracer.pVars->getRootVar()["gPixelMap"] = blockTex;
+    mTracer.pVars->getRootVar()["PerFrameCB"]["RENDER_SAMPLES"] = renderSamples;
+    mTracer.pVars->getRootVar()["gTestColor"] = testColor;
+
     auto bind = [&](const ChannelDesc& desc)
     {
         if (!desc.texname.empty())
@@ -293,9 +305,6 @@ void MegakernelPathTracer::execute(RenderContext* pRenderContext, const RenderDa
     };
     for (auto channel : mInputChannels) bind(channel);
     for (auto channel : mOutputChannels) bind(channel);
-
-    mTracer.pVars->getRootVar()["gPixelMap"] = blockTex;
-    mTracer.pVars->getRootVar()["PerFrameCB"]["RENDER_SAMPLES"] = renderSamples;
 
     // Get dimensions of ray dispatch.
     const uint2 targetDim = renderData.getDefaultTextureDims();

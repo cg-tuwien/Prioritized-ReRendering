@@ -39,5 +39,5 @@
 #define FALCOR_ENABLE_RTXDI             1 // Set this to 1 to enable RTXDI. Make sure you have the RTXDI SDK package in your `Externals` directory. View the readme for more information.
 
 #define FALCOR_ENABLE_INTERACTIVE_IMPORT 1
-#define DEBUG_UI 0
+#define DEBUG_UI 1
 #define ANIMATION_UI 1

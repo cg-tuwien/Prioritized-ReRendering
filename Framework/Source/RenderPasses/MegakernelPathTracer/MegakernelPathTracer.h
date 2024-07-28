@@ -69,7 +69,8 @@ private:
 
     Texture::SharedPtr blockTex;
     Texture::SharedPtr reduceTex;
-    Texture::SharedPtr accumTex;
+
+    Texture::SharedPtr testColor;
 
     std::vector<int2> blockUpdates;
     std::vector<int2> emptyUpdates;

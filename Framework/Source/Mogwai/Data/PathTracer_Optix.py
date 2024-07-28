@@ -42,6 +42,7 @@ def render_graph_MegakernelPathTracer():
     g.addEdge("InteractionPass.dst", "OutlinePass.input")
     
     g.markOutput("OutlinePass.output")
+    g.markOutput("MegakernelPathTracer.test")
 
     return g
 
