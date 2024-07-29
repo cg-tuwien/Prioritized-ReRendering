@@ -75,8 +75,11 @@ namespace Mogwai
 
     void Renderer::onShutdown()
     {
-        InteractionPass::SharedPtr ip = std::dynamic_pointer_cast<InteractionPass>(mGraphs[mActiveGraph].pGraph->getPass("InteractionPass"));
-        ip->shutdown();
+        try {
+            InteractionPass::SharedPtr ip = std::dynamic_pointer_cast<InteractionPass>(mGraphs[mActiveGraph].pGraph->getPass("InteractionPass"));
+            ip->shutdown();
+        }
+        catch (Exception) {}
         resetEditor();
         gpDevice->flushAndSync(); // Need to do that because clearing the graphs will try to release some state objects which might be in use
         mGraphs.clear();
@@ -495,7 +498,7 @@ namespace Mogwai
                 timeReport.printToLog();
                 return;
             }
-            catch (const ImporterError &e)
+            catch (const ImporterError& e)
             {
                 reportErrorAndAllowRetry(fmt::format("Failed to load scene.\n\nError in {}\n\n{}", e.path(), e.what()));
             }
@@ -673,7 +676,7 @@ namespace Mogwai
             if (resetNextFrame > 0)
             {
                 //std::this_thread::sleep_for(std::chrono::seconds(4));
-                
+
                 if ((frameCounter < frames_before && resetNextFrame >= threshold_before) || (frameCounter >= frames_before && resetNextFrame >= threshold))
                 {
                     gpFramework->resetGlobalClock(frameCounter);
@@ -788,20 +791,20 @@ int main(int argc, char** argv)
 
     args::ArgumentParser parser("Mogwai render application.");
     parser.helpParams.programName = "Mogwai";
-    args::HelpFlag helpFlag(parser, "help", "Display this help menu.", {'h', "help"});
-    args::ValueFlag<std::string> scriptFlag(parser, "path", "Python script file to run.", {'s', "script"});
+    args::HelpFlag helpFlag(parser, "help", "Display this help menu.", { 'h', "help" });
+    args::ValueFlag<std::string> scriptFlag(parser, "path", "Python script file to run.", { 's', "script" });
     args::ValueFlag<std::string> sceneFlag(parser, "path", "Scene file (for example, a .pyscene file) to open.", { 'S', "scene" });
-    args::ValueFlag<std::string> logfileFlag(parser, "path", "File to write log into.", {'l', "logfile"});
+    args::ValueFlag<std::string> logfileFlag(parser, "path", "File to write log into.", { 'l', "logfile" });
     args::ValueFlag<int32_t> verbosityFlag(parser, "verbosity", "Logging verbosity (0=disabled, 1=fatal errors, 2=errors, 3=warnings, 4=infos, 5=debugging)", { 'v', "verbosity" }, 4);
-    args::Flag silentFlag(parser, "", "Starts Mogwai with a minimized window and disables mouse/keyboard input as well as error message dialogs.", {"silent"});
-    args::ValueFlag<uint32_t> widthFlag(parser, "pixels", "Initial window width.", {"width"});
-    args::ValueFlag<uint32_t> heightFlag(parser, "pixels", "Initial window height.", {"height"});
-    args::Flag useSceneCacheFlag(parser, "", "Use scene cache to improve scene load times.", {'c', "use-cache"});
-    args::Flag rebuildSceneCacheFlag(parser, "", "Rebuild the scene cache.", {"rebuild-cache"});
-    args::Flag generateShaderDebugInfo(parser, "", "Generate shader debug info.", {'d', "debug-shaders"});
-    args::Flag enableDebugLayer(parser, "", "Enable debug layer (enabled by default in Debug build).", {"enable-debug-layer"});
+    args::Flag silentFlag(parser, "", "Starts Mogwai with a minimized window and disables mouse/keyboard input as well as error message dialogs.", { "silent" });
+    args::ValueFlag<uint32_t> widthFlag(parser, "pixels", "Initial window width.", { "width" });
+    args::ValueFlag<uint32_t> heightFlag(parser, "pixels", "Initial window height.", { "height" });
+    args::Flag useSceneCacheFlag(parser, "", "Use scene cache to improve scene load times.", { 'c', "use-cache" });
+    args::Flag rebuildSceneCacheFlag(parser, "", "Rebuild the scene cache.", { "rebuild-cache" });
+    args::Flag generateShaderDebugInfo(parser, "", "Generate shader debug info.", { 'd', "debug-shaders" });
+    args::Flag enableDebugLayer(parser, "", "Enable debug layer (enabled by default in Debug build).", { "enable-debug-layer" });
 
-    args::CompletionFlag completionFlag(parser, {"complete"});
+    args::CompletionFlag completionFlag(parser, { "complete" });
 
     try
     {

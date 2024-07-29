@@ -70,7 +70,7 @@ private:
     Texture::SharedPtr blockTex;
     Texture::SharedPtr reduceTex;
 
-    Texture::SharedPtr testColor;
+    Buffer::SharedPtr tilePriority;
 
     std::vector<int2> blockUpdates;
     std::vector<int2> emptyUpdates;

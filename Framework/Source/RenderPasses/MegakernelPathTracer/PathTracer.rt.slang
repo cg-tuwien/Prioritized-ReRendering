@@ -47,12 +47,14 @@ RWTexture2D<float4> gOutputColor;
 RWTexture2D<float4> gOutputAlbedo;
 RWTexture2D<uint> gOutputTime;
 Texture2D<int2> gPixelMap;
-RWTexture2D<float4> gTestColor;
+RWBuffer<float4> gTilePriority;
 
 //INPUT
 cbuffer PerFrameCB
 {
     uint RENDER_SAMPLES;
+    uint SELECTED_OBJECT;
+    uint TEST_BOUNCES;
 }
 
 // Static configuration based on which buffers are bound.
@@ -138,6 +140,8 @@ void rayGen()
         return;
     }
 
+    uint2 tile_idx = pixel/TILE_SIZE;
+
     logSetPixel(pixel);
     printSetPixel(pixel);
 
@@ -165,11 +169,12 @@ void rayGen()
 
     uint2 targetPixel = targetBlock * TILE_SIZE + pixel%TILE_SIZE;
     float selectedObjectHit = 0.f;
+    float indirectHit = 0.f;
 
     if (loadShadingData(targetPixel, frameDim, gScene.camera, lod, sd, hit))
     {
         // Pixel represents a primary hit. Compute its contribution.
-        if (hit.getTriangleHit().instanceID.index == 40)
+        if (hit.getTriangleHit().instanceID.index == SELECTED_OBJECT)
         {
             selectedObjectHit = 1.f;
         }
@@ -207,7 +212,7 @@ void rayGen()
             }
 
             // Trace the path.
-            tracePath(gData, sd, bsdf, path);
+            tracePath(gData, sd, bsdf, SELECTED_OBJECT, path, indirectHit);
 
             logPathLength(path.length);
 
@@ -238,7 +243,7 @@ void rayGen()
     // These are all optional so using compile-time checks to decide which ones to write.
     if (is_valid(gOutputColor)) gOutputColor[pixel] = float4(outColor, outAlpha);
     if (is_valid(gOutputAlbedo)) gOutputAlbedo[pixel] = float4(outAlbedo, 1);
-    if (is_valid(gTestColor)) gTestColor[pixel] = float4(selectedObjectHit,0.f,0.f,1.f);
+    gTilePriority[tile_idx.y * 120 + tile_idx.x] += float4(selectedObjectHit, indirectHit, 0.f, 1.f);
 
     // Write time.
     if (is_valid(gOutputTime)) gOutputTime[pixel] = timer.getElapsed();

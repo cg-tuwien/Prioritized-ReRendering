@@ -120,7 +120,7 @@ public:
     bool getReset() { return reset; }
     void animate() {
         logInfo("animate");
-        selectedObj[0].mTranslation = selectedObj[0].mTranslation + float3(0, 0.005, 0);
+        //selectedObj[0].mTranslation = selectedObj[0].mTranslation + float3(0, 0.005, 0);
         mUserChangedScene = true;
     }
     bool shouldAnimate() {

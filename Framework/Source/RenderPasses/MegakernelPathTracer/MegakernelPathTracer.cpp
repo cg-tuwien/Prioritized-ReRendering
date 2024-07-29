@@ -40,6 +40,7 @@ namespace
     //Point on the screen where a change occured. The path-tracer should update the image starting from this point.
     const char point_of_change[] = "point_of_change";
     const char change_occured[] = "change_occured";
+    const char mesh_id[] = "mesh_id";
     //Clearmode for accumulate pass
     const char clear_mode[] = "clear_mode";
     const char high_samples[] = "high_samples";
@@ -56,14 +57,12 @@ namespace
     const std::string kColorOutput = "color";
     const std::string kAlbedoOutput = "albedo";
     const std::string kTimeOutput = "time";
-    const std::string kTestColor = "test";
 
     const Falcor::ChannelList kOutputChannels =
     {
         { kColorOutput,     "gOutputColor",               "Output color (linear)", true /* optional */, ResourceFormat::RGBA32Float },
         { kAlbedoOutput,    "gOutputAlbedo",              "Surface albedo (base color) or background color", true /* optional */, ResourceFormat::RGBA32Float },
         { kTimeOutput,      "gOutputTime",                "Per-pixel execution time", true /* optional */, ResourceFormat::R32Uint },
-        { kTestColor,      "gTestColor",                "Per-pixel hit", true /* optional */, ResourceFormat::RGBA32Float },
     };
 
     const Gui::DropdownList kRepValList =
@@ -143,13 +142,13 @@ void MegakernelPathTracer::setScene(RenderContext* pRenderContext, const Scene::
         mTracer.pProgram = RtProgram::create(desc, defines);
 
         uint2 gridDim = uint2(uint2(1920 + tileSize - 1, 1080 + tileSize - 1) / uint2(tileSize, tileSize));
+        std::cout << "x: " << gridDim.y << std::endl;
         blockTex = Texture::create2D(gridDim.x, gridDim.y, Falcor::ResourceFormat::RG32Uint, 1, 1);
         reduceTex = Texture::create2D(1920, 1080, Falcor::ResourceFormat::RGBA32Float, 1, 1, 0, Falcor::ResourceBindFlags::UnorderedAccess);
-        std::vector<float4> testInit;
-        for (int i = 0; i < 1920 * 1080; i++) testInit.push_back(float4(0, 1, 0, 1));
-        testColor = Texture::create2D(1920, 1080, Falcor::ResourceFormat::RGBA32Float, 1, 1, testInit.data(), Resource::BindFlags::UnorderedAccess | Resource::BindFlags::ShaderResource);
-        FALCOR_ASSERT(testColor);
-        testColor->setName("MegakernelPathTracer.test");
+        //tilePriority = Texture::create2D(gridDim.x, gridDim.y, Falcor::ResourceFormat::RGBA32Float, 1, 1, nullptr, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::ShaderResource);
+        tilePriority = Buffer::createTyped<float4>(gridDim.x * gridDim.y, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::ShaderResource, Buffer::CpuAccess::None, nullptr);
+        FALCOR_ASSERT(tilePriority);
+        tilePriority->setName("MegakernelPathTracer.prio");
 
         emptyUpdates = std::vector<int2>(gridDim.x * gridDim.y, int2(-1, -1));
 
@@ -170,7 +169,7 @@ void MegakernelPathTracer::execute(RenderContext* pRenderContext, const RenderDa
     if (!beginFrame(pRenderContext, renderData)) return;
 
     //uint2 gridDim = uint2(uint2(1920 + tileSize - 1, 1080 + tileSize - 1) / uint2(tileSize, tileSize));
-    uint2 gridDim = uint2(renderData.getDefaultTextureDims()) / uint2(tileSize, tileSize);
+    uint2 gridDim = (uint2(renderData.getDefaultTextureDims()) + uint2(tileSize - 1)) / uint2(tileSize, tileSize);
     uint maxPossible = gridDim.x * gridDim.y;
 
     if (mTileSizeChanged)
@@ -293,7 +292,8 @@ void MegakernelPathTracer::execute(RenderContext* pRenderContext, const RenderDa
 
     mTracer.pVars->getRootVar()["gPixelMap"] = blockTex;
     mTracer.pVars->getRootVar()["PerFrameCB"]["RENDER_SAMPLES"] = renderSamples;
-    mTracer.pVars->getRootVar()["gTestColor"] = testColor;
+    mTracer.pVars->getRootVar()["PerFrameCB"]["SELECTED_OBJECT"] = dict.keyExists(mesh_id) ? (uint)dict[mesh_id] : 42;
+    mTracer.pVars->getRootVar()["gTilePriority"] = tilePriority;
 
     auto bind = [&](const ChannelDesc& desc)
     {
@@ -336,6 +336,12 @@ void MegakernelPathTracer::execute(RenderContext* pRenderContext, const RenderDa
 
     // Call shared post-render code.
     endFrame(pRenderContext, renderData);
+
+    const float4* result = reinterpret_cast<const float4*>(tilePriority->map(Buffer::MapType::Read));
+    std::vector<float4> test(result, result + (gridDim.x * gridDim.y));
+    tilePriority->unmap();
+    std::vector<float4> reset_data(gridDim.x * gridDim.y);
+    tilePriority->setBlob(reset_data.data(), 0, reset_data.size() * sizeof(float4));
 }
 
 void MegakernelPathTracer::buildSpiralQueue(uint2 point_of_change, uint2 gridDim)

@@ -155,7 +155,7 @@ namespace Mogwai
         auto old_str = std::to_string(gpFramework->getGlobalClock().getFrame());
         size_t n_zero = 3;
         auto new_str = std::string(n_zero - std::min(n_zero, old_str.length()), '0') + old_str;
-        const std::string basename = "image_" + new_str;
+        const std::string basename = "image_" + outputName + "_" + new_str;
 
         const Texture::SharedPtr pOutput = pGraph->getOutput(outputIndex)->asTexture();
         if (!pOutput) throw RuntimeError("Graph output {} is not a texture", outputName);
