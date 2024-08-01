@@ -215,6 +215,7 @@ void InteractionPass::setScene(RenderContext* pRenderContext, const Scene::Share
         mpScene->addViewpoint(float3(3.501745, 2.458483, -2.836822), float3(2.978681, 1.907147, -2.186873), float3(-0.000485, 1.000000, 0.000602), 0);
         mpScene->addViewpoint(float3(3.102161, 3.026642, 0.337517), float3(2.275490, 2.513116, 0.107504), float3(0.000000, 1.000000, 0.000000), 0);
         mpScene->addViewpoint(float3(-0.592427, 1.122877, -0.771308), float3(-1.527504, 1.311737, -1.071247), float3(0.002599, 0.999996, 0.000832), 0);
+        mpScene->addViewpoint(float3(-0.460917, 1.76411, -1.47318), float3(-1.25415, 1.34553, -1.91543), float3(0, 1, 0), 0);
         mpScene->selectViewpoint(0);
 
         //find_all_eyetrackers_example();
@@ -245,7 +246,7 @@ void InteractionPass::execute(RenderContext* pRenderContext, const RenderData& r
         pRenderContext->copyResource(mpPixelDataStaging.get(), mpPixelDataBuffer.get());
         pRenderContext->flush(false);
         mpFence->gpuSignal(pRenderContext->getLowLevelData()->getCommandQueue());
-
+        dict["right_mouse_clicked"] = false;
 
         if (mRightMouseClicked)
         {
@@ -281,6 +282,7 @@ void InteractionPass::execute(RenderContext* pRenderContext, const RenderData& r
                 mScaling.add(currentObj.mScaling, (float)selectedObj.size());
 
                 backgroundPixelSelected = false;
+                dict["right_mouse_clicked"] = true;
             }
             else
             {

@@ -322,7 +322,7 @@ void evalDirect(const PathTracerData pt, const ShadingData sd, const IBSDF bsdf,
     }
 }
 
-void tracePath(const PathTracerData pt, ShadingData sd, IBSDF bsdf, uint selectedObjectIdx, inout PathData path, inout float selectedObjectHit)
+void tracePath(const PathTracerData pt, ShadingData sd, IBSDF bsdf, const uint selectedObjectIdx, inout PathData path, inout uint indirectHit)
 {
     logPathVertex();
 
@@ -371,7 +371,7 @@ void tracePath(const PathTracerData pt, ShadingData sd, IBSDF bsdf, uint selecte
 
         if (path.hit.getTriangleHit().instanceID.index == selectedObjectIdx)
         {
-            selectedObjectHit += (float)kIterationCount / (float)depth;
+            indirectHit += (uint)((float)kIterationCount / (float)depth);
         }
 
         // Scatter the ray footprint out of the surface. Primary bounce is handled at footprint creation time.

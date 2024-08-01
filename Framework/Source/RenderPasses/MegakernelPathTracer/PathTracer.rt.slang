@@ -47,7 +47,8 @@ RWTexture2D<float4> gOutputColor;
 RWTexture2D<float4> gOutputAlbedo;
 RWTexture2D<uint> gOutputTime;
 Texture2D<int2> gPixelMap;
-RWBuffer<float4> gTilePriority;
+RWByteAddressBuffer gTilePriorityDirect;
+RWByteAddressBuffer gTilePriorityIndirect;
 
 //INPUT
 cbuffer PerFrameCB
@@ -55,6 +56,7 @@ cbuffer PerFrameCB
     uint RENDER_SAMPLES;
     uint SELECTED_OBJECT;
     uint TEST_BOUNCES;
+    bool INCREMENTAL;
 }
 
 // Static configuration based on which buffers are bound.
@@ -155,6 +157,25 @@ void rayGen()
     HitInfo hit;
     ShadingData sd;
     let lod = createTextureSampler(pixel);
+    uint directHit = 0;
+    uint indirectHit = 0;
+
+    if (loadShadingData(pixel, frameDim, gScene.camera, lod, sd, hit))
+    {
+        if (hit.getTriangleHit().instanceID.index == SELECTED_OBJECT)
+        {
+            directHit = 1;
+        }
+        // Create BSDF instance and query its properties.
+        let bsdf = gScene.materials.getBSDF(sd, lod);
+        let bsdfProperties = bsdf.getProperties(sd);
+        outAlbedo = bsdfProperties.diffuseReflectionAlbedo + bsdfProperties.specularReflectionAlbedo;
+    } 
+    else
+    {
+        // Background pixel.
+        outAlbedo = evalBackground(-sd.V);
+    }
 
     int block = (pixel.y/TILE_SIZE) * blocks_per_dim.x + (pixel.x/TILE_SIZE);
     int lookupID = block / RENDER_SAMPLES;
@@ -165,19 +186,12 @@ void rayGen()
  	{
         return;
     }
-   
 
     uint2 targetPixel = targetBlock * TILE_SIZE + pixel%TILE_SIZE;
-    float selectedObjectHit = 0.f;
-    float indirectHit = 0.f;
 
     if (loadShadingData(targetPixel, frameDim, gScene.camera, lod, sd, hit))
     {
         // Pixel represents a primary hit. Compute its contribution.
-        if (hit.getTriangleHit().instanceID.index == SELECTED_OBJECT)
-        {
-            selectedObjectHit = 1.f;
-        }
 
         // Create BSDF instance and query its properties.
         let bsdf = gScene.materials.getBSDF(sd, lod);
@@ -225,14 +239,14 @@ void rayGen()
         // We're done accumulating over all samples.
         const float invSpp = 1.f / kSamplesPerPixel;
         outColor *= invSpp;
-        outAlbedo = bsdfProperties.diffuseReflectionAlbedo + bsdfProperties.specularReflectionAlbedo; // TODO: Include transmission?
+        //outAlbedo = bsdfProperties.diffuseReflectionAlbedo + bsdfProperties.specularReflectionAlbedo; // TODO: Include transmission?
         outAlpha = 1.f;
     }
     else
     {
         // Background pixel.
         outColor = evalBackground(-sd.V);
-        outAlbedo = outColor.rgb;
+        //outAlbedo = outColor.rgb;
         outAlpha = kForceAlphaOne ? 1.f : 0.f;
     }
 
@@ -243,7 +257,11 @@ void rayGen()
     // These are all optional so using compile-time checks to decide which ones to write.
     if (is_valid(gOutputColor)) gOutputColor[pixel] = float4(outColor, outAlpha);
     if (is_valid(gOutputAlbedo)) gOutputAlbedo[pixel] = float4(outAlbedo, 1);
-    gTilePriority[tile_idx.y * 120 + tile_idx.x] += float4(selectedObjectHit, indirectHit, 0.f, 1.f);
+    if (directHit>0) indirectHit = 0;
+    uint originalValue;
+    int idx = tile_idx.y * 120 + tile_idx.x;
+    gTilePriorityDirect.InterlockedAdd(idx*4, directHit, originalValue);
+    gTilePriorityIndirect.InterlockedAdd(idx*4, indirectHit, originalValue);
 
     // Write time.
     if (is_valid(gOutputTime)) gOutputTime[pixel] = timer.getElapsed();

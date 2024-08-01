@@ -62,6 +62,7 @@ private:
     void prepareVars();
     void setTracerData(const RenderData& renderData);
     void buildSpiralQueue(uint2 point_of_change, uint2 gridDim);
+    void buildPrioritizedQueue(uint2 gridDim);
 
     ComputeProgram::SharedPtr   mpProgram;   ///< Accumulation programs, one per mode.
     ComputeVars::SharedPtr      mpVars;                         ///< Program variables.
@@ -70,7 +71,11 @@ private:
     Texture::SharedPtr blockTex;
     Texture::SharedPtr reduceTex;
 
-    Buffer::SharedPtr tilePriority;
+    Buffer::SharedPtr tilePriorityDirect;
+    Buffer::SharedPtr tilePriorityIndirect;
+    bool exportPriority = false;
+    uint exportCounter = 0;
+    std::vector<uint> directVector, indirectVector;
 
     std::vector<int2> blockUpdates;
     std::vector<int2> emptyUpdates;
@@ -81,6 +86,7 @@ private:
     std::queue<int2> tileQueue;
     std::queue<int2> baseQueue;
     std::queue<int2> spiralQueue;
+    std::queue<int2> prioritizedQueue;
 
     bool reset;
     bool mIncrementalEnabled = true;
@@ -94,3 +100,31 @@ private:
         ParameterBlock::SharedPtr pParameterBlock;      ///< ParameterBlock for all data.
     } mTracer;
 };
+
+
+template <typename T>
+void add_unique(std::queue<T>& q, const T& element) {
+    // Temporary container to store the elements of the queue
+    std::deque<T> temp;
+    bool found = false;
+
+    // Check if the element exists in the queue
+    while (!q.empty()) {
+        if (q.front() == element) {
+            found = true;
+        }
+        temp.push_back(q.front());
+        q.pop();
+    }
+
+    // If the element was not found, add it to the queue
+    if (!found) {
+        temp.push_back(element);
+    }
+
+    // Restore the elements to the queue
+    while (!temp.empty()) {
+        q.push(temp.front());
+        temp.pop_front();
+    }
+}

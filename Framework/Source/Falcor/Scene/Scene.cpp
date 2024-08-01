@@ -1713,7 +1713,8 @@ namespace Falcor
             viewpoints.push_back({ 2, "Living Room Table" });
             viewpoints.push_back({ 3, "Kitchen Table" });
             viewpoints.push_back({ 4, "Kitchen Light" });
-            for (uint32_t viewId = 5; viewId < (uint32_t)mViewpoints.size(); viewId++)
+            viewpoints.push_back({ 5, "Bath" });
+            for (uint32_t viewId = 6; viewId < (uint32_t)mViewpoints.size(); viewId++)
             {
                 viewpoints.push_back({ viewId, "Viewpoint " + std::to_string(viewId) });
             }

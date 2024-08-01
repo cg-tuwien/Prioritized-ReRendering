@@ -145,10 +145,10 @@ void MegakernelPathTracer::setScene(RenderContext* pRenderContext, const Scene::
         std::cout << "x: " << gridDim.y << std::endl;
         blockTex = Texture::create2D(gridDim.x, gridDim.y, Falcor::ResourceFormat::RG32Uint, 1, 1);
         reduceTex = Texture::create2D(1920, 1080, Falcor::ResourceFormat::RGBA32Float, 1, 1, 0, Falcor::ResourceBindFlags::UnorderedAccess);
-        //tilePriority = Texture::create2D(gridDim.x, gridDim.y, Falcor::ResourceFormat::RGBA32Float, 1, 1, nullptr, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::ShaderResource);
-        tilePriority = Buffer::createTyped<float4>(gridDim.x * gridDim.y, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::ShaderResource, Buffer::CpuAccess::None, nullptr);
-        FALCOR_ASSERT(tilePriority);
-        tilePriority->setName("MegakernelPathTracer.prio");
+        tilePriorityDirect = Buffer::create(gridDim.x * gridDim.y * sizeof(uint), Resource::BindFlags::UnorderedAccess | Resource::BindFlags::ShaderResource, Buffer::CpuAccess::None, nullptr);
+        tilePriorityIndirect = Buffer::create(gridDim.x * gridDim.y * sizeof(uint), Resource::BindFlags::UnorderedAccess | Resource::BindFlags::ShaderResource, Buffer::CpuAccess::None, nullptr);
+        directVector = std::vector<uint>(gridDim.x * gridDim.y, 0);
+        indirectVector = std::vector<uint>(gridDim.x * gridDim.y, 0);
 
         emptyUpdates = std::vector<int2>(gridDim.x * gridDim.y, int2(-1, -1));
 
@@ -159,6 +159,25 @@ void MegakernelPathTracer::setScene(RenderContext* pRenderContext, const Scene::
         mpVars = ComputeVars::create(mpProgram->getReflector());
         mpState = ComputeState::create();
     }
+}
+
+bool writeToFile(const std::vector<uint> data, const std::string filename, const uint2 gridDim)
+{
+    std::ofstream outFile(filename, std::ios::binary);
+    if (!outFile) {
+        std::cerr << "Error: Could not open file for writing." << std::endl;
+        return false;
+    }
+
+    // Write width and height to the file
+    outFile.write(reinterpret_cast<const char*>(&gridDim.x), sizeof(uint));
+    outFile.write(reinterpret_cast<const char*>(&gridDim.y), sizeof(uint));
+
+    // Write the scalar field data to the file
+    outFile.write(reinterpret_cast<const char*>(data.data()), data.size() * sizeof(uint));
+
+    outFile.close();
+    return true;
 }
 
 void MegakernelPathTracer::execute(RenderContext* pRenderContext, const RenderData& renderData)
@@ -202,8 +221,10 @@ void MegakernelPathTracer::execute(RenderContext* pRenderContext, const RenderDa
     {
         if (mIncrementalEnabled)
         {
-            buildSpiralQueue(dict[point_of_change], gridDim);
-            tileQueue = spiralQueue;
+            //buildSpiralQueue(dict[point_of_change], gridDim);
+            //tileQueue = spiralQueue;
+            buildPrioritizedQueue(gridDim);
+            tileQueue = prioritizedQueue;
             renderSamples = highSamples;
             dict[clear_mode] = (int)ClearMode::Incremental;
             dict[high_samples] = (int)highSamples;
@@ -293,7 +314,9 @@ void MegakernelPathTracer::execute(RenderContext* pRenderContext, const RenderDa
     mTracer.pVars->getRootVar()["gPixelMap"] = blockTex;
     mTracer.pVars->getRootVar()["PerFrameCB"]["RENDER_SAMPLES"] = renderSamples;
     mTracer.pVars->getRootVar()["PerFrameCB"]["SELECTED_OBJECT"] = dict.keyExists(mesh_id) ? (uint)dict[mesh_id] : 42;
-    mTracer.pVars->getRootVar()["gTilePriority"] = tilePriority;
+    mTracer.pVars->getRootVar()["PerFrameCB"]["INCREMENTAL"] = mIncrementalEnabled && ClearMode(dict.getValue(clear_mode, 0)) == ClearMode::Incremental;
+    mTracer.pVars->getRootVar()["gTilePriorityDirect"] = tilePriorityDirect;
+    mTracer.pVars->getRootVar()["gTilePriorityIndirect"] = tilePriorityIndirect;
 
     auto bind = [&](const ChannelDesc& desc)
     {
@@ -337,11 +360,46 @@ void MegakernelPathTracer::execute(RenderContext* pRenderContext, const RenderDa
     // Call shared post-render code.
     endFrame(pRenderContext, renderData);
 
-    const float4* result = reinterpret_cast<const float4*>(tilePriority->map(Buffer::MapType::Read));
-    std::vector<float4> test(result, result + (gridDim.x * gridDim.y));
-    tilePriority->unmap();
-    std::vector<float4> reset_data(gridDim.x * gridDim.y);
-    tilePriority->setBlob(reset_data.data(), 0, reset_data.size() * sizeof(float4));
+    //if (ClearMode(dict.getValue(clear_mode, 0)) != ClearMode::Incremental) {
+    if ((bool)dict.getValue("right_mouse_clicked", false) || (mIncrementalEnabled && ClearMode(dict.getValue(clear_mode, 0)) == ClearMode::Reset)){
+        const uint* resultDirect = reinterpret_cast<const uint*>(tilePriorityDirect->map(Buffer::MapType::Read));
+        std::copy(resultDirect, resultDirect + (gridDim.x * gridDim.y), directVector.begin());
+        tilePriorityDirect->unmap();
+
+        const uint* resultIndirect = reinterpret_cast<const uint*>(tilePriorityIndirect->map(Buffer::MapType::Read));
+        std::copy(resultIndirect, resultIndirect + (gridDim.x * gridDim.y), indirectVector.begin());
+        tilePriorityIndirect->unmap();
+    }
+
+    if (exportPriority)
+    {
+        writeToFile(directVector, "prioDir" + std::to_string(exportCounter) + ".bin", gridDim);
+        writeToFile(indirectVector, "prioInd" + std::to_string(exportCounter) + ".bin", gridDim);
+        exportPriority = false;
+        exportCounter++;
+    }
+    
+    std::vector<uint> reset_data(gridDim.x * gridDim.y);
+    tilePriorityDirect->setBlob(reset_data.data(), 0, reset_data.size() * sizeof(uint));
+    tilePriorityIndirect->setBlob(reset_data.data(), 0, reset_data.size() * sizeof(uint));
+}
+
+void MegakernelPathTracer::buildPrioritizedQueue(uint2 gridDim)
+{
+    std::queue<int2> empty;
+    prioritizedQueue.swap(empty);
+
+    std::vector<int> highPriorityTiles;
+    for (int i = 0; i < directVector.size(); i++)
+    {
+        if (directVector[i] > 0)
+        {
+            highPriorityTiles.push_back(i);
+            prioritizedQueue.push(uint2(i%gridDim.x, i/gridDim.x));
+        }
+    }
+    highSamples = highPriorityTiles.size() > 0 ? (int)((gridDim.x * gridDim.y) / (float)highPriorityTiles.size()) : 64;
+    std::cout << highPriorityTiles.size() << " " << highSamples << std::endl;
 }
 
 void MegakernelPathTracer::buildSpiralQueue(uint2 point_of_change, uint2 gridDim)
@@ -438,6 +496,10 @@ void MegakernelPathTracer::renderUI(Gui::Widgets& widget)
 {
 #if DEBUG_UI
     widget.checkbox("Incremental Update?", mIncrementalEnabled);
+    if (widget.button("Export Priority"))
+    {
+        exportPriority = true;
+    }
 #endif
     if (mIncrementalEnabled)
     {
