@@ -86,7 +86,7 @@ private:
     bool recomputePriority = false;
     bool recomputePriorityFirstTime = true;
     uint2 objectScreenPos = uint2(0, 0);
-    int2 amountShifted = int2(0, 0);
+    int2 amountShifted = int2(-1, 1);
     int2 shiftChange = int2(0, 0);
 
     std::vector<int2> blockUpdates;
@@ -105,6 +105,7 @@ private:
     bool mAutomatedPriority = false;
     bool mEyetracking = false;
     bool mSpiral = false;
+    bool firstTimeReset = true;
 
     // Ray tracing program.
     struct

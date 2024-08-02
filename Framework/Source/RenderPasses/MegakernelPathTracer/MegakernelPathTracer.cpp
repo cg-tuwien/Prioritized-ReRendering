@@ -239,6 +239,7 @@ void MegakernelPathTracer::execute(RenderContext* pRenderContext, const RenderDa
             renderSamples = highSamples;
             dict[clear_mode] = (int)ClearMode::Incremental;
             dict[high_samples] = (int)highSamples;
+            firstTimeReset = true;
         }
         else
         {
@@ -282,6 +283,14 @@ void MegakernelPathTracer::execute(RenderContext* pRenderContext, const RenderDa
         {
             spiralCompleted = true;
             recomputePriority = true;
+        }
+        else if (!mSpiral && firstTimeReset)
+        {
+            highPriorityTiles.clear();
+            middlePriorityTiles.clear();
+            lowPriorityTiles.clear();
+            recomputePriority = true;
+            firstTimeReset = false;
         }
         else {
             tileQueue = baseQueue;
@@ -476,6 +485,22 @@ void MegakernelPathTracer::updatePriorityTiles(uint2 gridDim)
             {
                 lowPriorityTiles.erase(it_low);
             }
+
+            // remove again
+            auto it_high2 = std::find(highPriorityTiles.begin(), highPriorityTiles.end(), i);
+            auto it_middle2 = std::find(middlePriorityTiles.begin(), middlePriorityTiles.end(), i);
+            auto it_low2 = std::find(lowPriorityTiles.begin(), lowPriorityTiles.end(), i);
+            if (it_high2 == highPriorityTiles.end()) {
+                highPrio.push_back(i);
+            }
+            if (it_middle2 != middlePriorityTiles.end())
+            {
+                middlePriorityTiles.erase(it_middle2);
+            }
+            if (it_low2 != lowPriorityTiles.end())
+            {
+                lowPriorityTiles.erase(it_low2);
+            }
         }
     }
     std::cout << highPrio.size() << std::endl;
@@ -488,7 +513,7 @@ void MegakernelPathTracer::updatePriorityTiles(uint2 gridDim)
         int2 tile_pos = int2(i % gridDim.x, i / gridDim.x) + amountShifted;
         int tile_idx = tile_pos.y * gridDim.x + tile_pos.x;
         
-        if (indirectVector[i] > 2 * max_indirect / 3)
+        if (indirectVector[i] > 1 * max_indirect / 3)
         {
             auto it_high = std::find(highPriorityTiles.begin(), highPriorityTiles.end(), tile_idx);
             auto it_middle = std::find(middlePriorityTiles.begin(), middlePriorityTiles.end(), tile_idx);
@@ -505,7 +530,7 @@ void MegakernelPathTracer::updatePriorityTiles(uint2 gridDim)
                 lowPriorityTiles.erase(it_low);
             }
         }
-        else if (indirectVector[i] > max_indirect / 3)
+        else if (indirectVector[i] > max_indirect / 6)
         {
             auto it_high = std::find(highPriorityTiles.begin(), highPriorityTiles.end(), i);
             auto it_middle = std::find(middlePriorityTiles.begin(), middlePriorityTiles.end(), i);
@@ -513,7 +538,7 @@ void MegakernelPathTracer::updatePriorityTiles(uint2 gridDim)
             bool not_found = (it_high == highPriorityTiles.end() && it_middle == middlePriorityTiles.end() && it_low == lowPriorityTiles.end());
             if(not_found) middlePriorityTiles.push_back(i);
         }
-        else if (indirectVector[i] > max_indirect / 6) {
+        else if (indirectVector[i] > max_indirect / 12) {
             auto it_high = std::find(highPriorityTiles.begin(), highPriorityTiles.end(), i);
             auto it_middle = std::find(middlePriorityTiles.begin(), middlePriorityTiles.end(), i);
             auto it_low = std::find(lowPriorityTiles.begin(), lowPriorityTiles.end(), i);

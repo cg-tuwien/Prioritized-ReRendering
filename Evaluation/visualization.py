@@ -23,7 +23,7 @@ def import_and_plot_scalar_field(number, scene):
         # Read the scalar field data
         prioInd = np.fromfile(f, dtype=np.uint32).reshape((height, width))
 
-    prioComb = prioDir + prioInd
+    prioComb = 5*prioDir + prioInd
 
     # Create a figure with two subplots side by side (1 row, 2 columns)
     fig, axes = plt.subplots(1, 3, figsize=(10, 5))
@@ -51,6 +51,102 @@ def import_and_plot_scalar_field(number, scene):
     # Show the figure
     plt.show()
 
+    # Create the plot
+    fig, ax = plt.subplots(figsize=(120, 68), dpi=10)
+    cax = ax.imshow(prioComb, cmap='viridis')
+
+    # Remove axes, ticks, and labels
+    ax.axis('off')
+
+    # Remove margins
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+
+    # Save the figure
+    plt.savefig('prio_' + str(scene) + '.png', bbox_inches='tight', pad_inches=0, )
+    plt.close()
+
+
+def spiral(target_x, target_y):
+    chebyshev_distances = np.fromfunction(
+        lambda x, y: np.maximum(np.abs(x - target_x), np.abs(y - target_y)),
+        (68, 120),
+        dtype=int
+    )
+
+    # Find the maximum distance
+    max_distance = np.max(chebyshev_distances)
+
+    # Invert the Chebyshev distance array
+    inverted_chebyshev_distances = max_distance - chebyshev_distances
+
+    # Create the plot
+    fig, ax = plt.subplots(figsize=(120, 68), dpi=10)
+    cax = ax.imshow(inverted_chebyshev_distances, cmap='viridis')
+
+    # Remove axes, ticks, and labels
+    ax.axis('off')
+
+    # Remove margins
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+
+    # Save the figure
+    plt.savefig('spiral_' + str(target_x) + '.png', bbox_inches='tight', pad_inches=0, )
+    plt.show()
+
+
+def double_spiral(target1_x, target1_y, target2_x, target2_y):
+    chebyshev_distances1 = np.fromfunction(
+        lambda x, y: np.maximum(np.abs(x - target1_x), np.abs(y - target1_y)),
+        (68, 120),
+        dtype=int
+    )
+
+    chebyshev_distances2 = np.fromfunction(
+        lambda x, y: np.maximum(np.abs(x - target2_x), np.abs(y - target2_y)),
+        (68, 120),
+        dtype=int
+    )
+
+    spiralfield = np.minimum(chebyshev_distances1, chebyshev_distances2)
+
+    # Find the maximum distance
+    max_distance = np.max(spiralfield)
+
+    # Invert the Chebyshev distance array
+    inverted_chebyshev_distances = max_distance - spiralfield
+
+    # Create the plot
+    fig, ax = plt.subplots(figsize=(120, 68), dpi=10)
+    cax = ax.imshow(inverted_chebyshev_distances, cmap='viridis')
+
+    # Remove axes, ticks, and labels
+    ax.axis('off')
+
+    # Remove margins
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+
+    # Save the figure
+    plt.savefig('eyetracking_' + str(target1_x) + '.png', bbox_inches='tight', pad_inches=0, )
+    plt.show()
+
+
+def globalprio():
+    scalar_field = np.zeros((68, 120))
+
+    # Create the plot
+    fig, ax = plt.subplots(figsize=(120, 68), dpi=10)
+    cax = ax.imshow(scalar_field, cmap='viridis')
+
+    # Remove axes, ticks, and labels
+    ax.axis('off')
+
+    # Remove margins
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+
+    # Save the figure
+    plt.savefig('global.png', bbox_inches='tight', pad_inches=0, )
+    plt.show()
+
 
 def extract_number_from_filename(filename):
     # Define the regular expression pattern
@@ -69,6 +165,14 @@ def extract_number_from_filename(filename):
 
 
 if __name__ == "__main__":
+    globalprio()
+    spiral(53,59)
+    spiral(43, 58)
+    spiral(40, 60)
+    double_spiral(53, 59, 10, 10)
+    double_spiral(43, 58, 20, 100)
+    double_spiral(40, 60, 50, 90)
+
     # Get the current working directory (root folder of the project)
     root_folder = os.getcwd()
 

@@ -120,7 +120,8 @@ public:
     bool getReset() { return reset; }
     void animate() {
         logInfo("animate");
-        //selectedObj[0].mTranslation = selectedObj[0].mTranslation + float3(0, 0.005, 0);
+        //selectedObj[0].mTranslation = selectedObj[0].mTranslation + float3(0, 0, 0.005);
+        std::dynamic_pointer_cast<StandardMaterial>(mpScene->getMaterial(selectedObj[0].mpPixelData.materialID))->setMetallic(1);
         mUserChangedScene = true;
     }
     bool shouldAnimate() {
