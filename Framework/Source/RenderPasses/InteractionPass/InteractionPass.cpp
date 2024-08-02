@@ -283,6 +283,7 @@ void InteractionPass::execute(RenderContext* pRenderContext, const RenderData& r
 
                 backgroundPixelSelected = false;
                 dict["right_mouse_clicked"] = true;
+                dict[point_of_change] = mParams.selectedPixel;
             }
             else
             {

@@ -402,6 +402,9 @@ namespace Mogwai
         data.originalOutputs = getGraphOutputs(pGraph);
 
         for (auto& e : mpExtensions) e->addGraph(pGraph.get());
+
+        if (mGraphs[mActiveGraph].pGraph->getPass("OptixDenoiser")) mGraphs[mActiveGraph].pGraph->getPass("OptixDenoiser")->setMethod(0);
+        if (mGraphs[mActiveGraph].pGraph->getPass("MegakernelPathTracer")) mGraphs[mActiveGraph].pGraph->getPass("MegakernelPathTracer")->setMethod(0);
     }
 
     void Renderer::loadScriptDialog()

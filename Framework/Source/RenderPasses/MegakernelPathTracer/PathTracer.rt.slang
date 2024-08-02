@@ -134,8 +134,7 @@ void rayGen()
     const uint2 pixel = DispatchRaysIndex().xy;
     const uint2 frameDim = DispatchRaysDimensions().xy;
 
-    //uint2 blocks_per_dim = (frameDim + TILE_SIZE - 1) / TILE_SIZE;
-    uint2 blocks_per_dim = frameDim / TILE_SIZE;
+    uint2 blocks_per_dim = (frameDim + TILE_SIZE - 1) / TILE_SIZE;
     uint2 pixels_per_dim = blocks_per_dim * TILE_SIZE;
     if(pixel.x >= pixels_per_dim.x || pixel.y >= pixels_per_dim.y)
     {

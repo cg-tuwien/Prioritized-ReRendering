@@ -62,7 +62,8 @@ private:
     void prepareVars();
     void setTracerData(const RenderData& renderData);
     void buildSpiralQueue(uint2 point_of_change, uint2 gridDim);
-    void buildPrioritizedQueue(uint2 gridDim);
+    void buildPrioritizedQueue(uint2 point_of_change, uint2 gridDim);
+    void updatePriorityTiles(uint2 gridDim);
 
     ComputeProgram::SharedPtr   mpProgram;   ///< Accumulation programs, one per mode.
     ComputeVars::SharedPtr      mpVars;                         ///< Program variables.
@@ -76,6 +77,17 @@ private:
     bool exportPriority = false;
     uint exportCounter = 0;
     std::vector<uint> directVector, indirectVector;
+    std::vector<int> highPriorityTiles;
+    std::vector<int> middlePriorityTiles;
+    std::vector<int> lowPriorityTiles;
+    bool objectMoved = false;
+    bool spiralTriggered = true;
+    bool spiralCompleted = true;
+    bool recomputePriority = false;
+    bool recomputePriorityFirstTime = true;
+    uint2 objectScreenPos = uint2(0, 0);
+    int2 amountShifted = int2(0, 0);
+    int2 shiftChange = int2(0, 0);
 
     std::vector<int2> blockUpdates;
     std::vector<int2> emptyUpdates;
@@ -89,7 +101,10 @@ private:
     std::queue<int2> prioritizedQueue;
 
     bool reset;
-    bool mIncrementalEnabled = true;
+    bool mIncrementalEnabled = false;
+    bool mAutomatedPriority = false;
+    bool mEyetracking = false;
+    bool mSpiral = false;
 
     // Ray tracing program.
     struct
@@ -103,7 +118,7 @@ private:
 
 
 template <typename T>
-void add_unique(std::queue<T>& q, const T& element) {
+bool add_unique(std::queue<T>& q, const T& element) {
     // Temporary container to store the elements of the queue
     std::deque<T> temp;
     bool found = false;
@@ -126,5 +141,18 @@ void add_unique(std::queue<T>& q, const T& element) {
     while (!temp.empty()) {
         q.push(temp.front());
         temp.pop_front();
+    }
+    return found;
+}
+
+int sign(int value) {
+    if (value > 0) {
+        return 1;
+    }
+    else if (value < 0) {
+        return -1;
+    }
+    else {
+        return 0;
     }
 }

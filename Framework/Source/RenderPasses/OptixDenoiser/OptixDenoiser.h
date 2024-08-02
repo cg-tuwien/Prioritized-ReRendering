@@ -145,9 +145,11 @@ private:
 
     // Incremental Rendering
     bool                        mIncrementalEnabled = false;
+    bool                        mGlobalDuringIncremental = false;
+    bool                        mMethodSwitched = false;
     uint8_t                     mIncrementalCounter = 0;
     int                         mMaxFrameBlend = 10;
-    bool                        mBlend = true;
+    bool                        mBlend = false;
     Texture::SharedPtr          tex;
 
     uint4 lastDenoisedFramePosition;

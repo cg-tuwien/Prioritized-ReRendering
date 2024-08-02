@@ -367,6 +367,11 @@ void OptixDenoiser_::execute(RenderContext* pRenderContext, const RenderData& re
                 spiralMin = newSpiralMin;
                 resizeDenoiser = true;
             }
+            spiralMin.x = clamp(spiralMin.x, (uint)0, (uint)1920);
+            spiralMax.x = clamp(spiralMax.x, (uint)0, (uint)1920);
+            spiralMin.y = clamp(spiralMin.y, (uint)0, (uint)1080);
+            spiralMax.y = clamp(spiralMax.y, (uint)0, (uint)1080);
+            std::cout << spiralMin.x << " " << spiralMin.y << ", " << spiralMax.x << " " << spiralMax.y << std::endl;
             halfSpiralR = spiralMax - poc;
             halfSpiralL = poc - spiralMin;
             spiralSize = halfSpiralR + halfSpiralL;
@@ -377,7 +382,10 @@ void OptixDenoiser_::execute(RenderContext* pRenderContext, const RenderData& re
 
             if (resizeDenoiser) resize(pRenderContext, spiralSize);
             mIncrementalCounter += 1;
-            if (mIncrementalCounter > 50) mIncrementalCounter = 1;
+            if (mIncrementalCounter > 50)
+            {
+                mIncrementalCounter = 1;
+            }
         }
         if (dict.keyExists(clear_mode) && (ClearMode)dict.getValue(clear_mode, 0) != ClearMode::Incremental && lastFrameWasIncremental)
         {
@@ -388,7 +396,19 @@ void OptixDenoiser_::execute(RenderContext* pRenderContext, const RenderData& re
             spiralMax = renderData.getDefaultTextureDims();
             spiralMin = uint2(0, 0);
             mDenoiser.modelKind = OptixDenoiserModelKind::OPTIX_DENOISER_MODEL_KIND_TEMPORAL;
+            mMethodSwitched = false;
         }
+    }
+    if (mMethodSwitched)
+    {
+        resize(pRenderContext, renderData.getDefaultTextureDims());
+        mDenoiser.params.blendFactor = 0;
+        mDenoiser.params.denoiseAlpha = 0u;
+        mIncrementalCounter = 0;
+        spiralMax = renderData.getDefaultTextureDims();
+        spiralMin = uint2(0, 0);
+        mDenoiser.modelKind = OptixDenoiserModelKind::OPTIX_DENOISER_MODEL_KIND_TEMPORAL;
+        mMethodSwitched = false;
     }
 
     if (mRecreateDenoiser)
@@ -704,21 +724,48 @@ void OptixDenoiser_::setMethod(uint32_t method)
 {
     switch (method)
     {
-    case 0:
+    case 0: //1spp
         mEnabled = false;
+        mIncrementalEnabled = false;
+        mGlobalDuringIncremental = false;
         break;
-    case 1:
+    case 1: //global
         mEnabled = true;
+        mIncrementalEnabled = false;
+        mGlobalDuringIncremental = false;
         break;
     case 2:
         mEnabled = true;
         mIncrementalEnabled = false;
+        mGlobalDuringIncremental = false;
         break;
     case 3:
         mEnabled = true;
         mIncrementalEnabled = true;
+        mGlobalDuringIncremental = false;
+        break;
+    case 4: //auto noisy
+        mEnabled = true;
+        mIncrementalEnabled = false;
+        mGlobalDuringIncremental = false;
+        break;
+    case 5: //auto denoised
+        mEnabled = true;
+        mIncrementalEnabled = true;
+        mGlobalDuringIncremental = true;
+        break;
+    case 6: //eye tracking
+        mEnabled = true;
+        mIncrementalEnabled = false;
+        mGlobalDuringIncremental = true;
+        break;
+    case 7: //auto + spiral
+        mEnabled = true;
+        mIncrementalEnabled = true;
+        mGlobalDuringIncremental = true;
         break;
     default:
         break;
     }
+    mMethodSwitched = true;
 }

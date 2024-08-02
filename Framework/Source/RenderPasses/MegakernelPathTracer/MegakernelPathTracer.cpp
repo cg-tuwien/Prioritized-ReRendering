@@ -142,7 +142,6 @@ void MegakernelPathTracer::setScene(RenderContext* pRenderContext, const Scene::
         mTracer.pProgram = RtProgram::create(desc, defines);
 
         uint2 gridDim = uint2(uint2(1920 + tileSize - 1, 1080 + tileSize - 1) / uint2(tileSize, tileSize));
-        std::cout << "x: " << gridDim.y << std::endl;
         blockTex = Texture::create2D(gridDim.x, gridDim.y, Falcor::ResourceFormat::RG32Uint, 1, 1);
         reduceTex = Texture::create2D(1920, 1080, Falcor::ResourceFormat::RGBA32Float, 1, 1, 0, Falcor::ResourceBindFlags::UnorderedAccess);
         tilePriorityDirect = Buffer::create(gridDim.x * gridDim.y * sizeof(uint), Resource::BindFlags::UnorderedAccess | Resource::BindFlags::ShaderResource, Buffer::CpuAccess::None, nullptr);
@@ -187,8 +186,7 @@ void MegakernelPathTracer::execute(RenderContext* pRenderContext, const RenderDa
     // Call shared pre-render code.
     if (!beginFrame(pRenderContext, renderData)) return;
 
-    //uint2 gridDim = uint2(uint2(1920 + tileSize - 1, 1080 + tileSize - 1) / uint2(tileSize, tileSize));
-    uint2 gridDim = (uint2(renderData.getDefaultTextureDims()) + uint2(tileSize - 1)) / uint2(tileSize, tileSize);
+    uint2 gridDim = uint2(uint2(1920 + tileSize - 1, 1080 + tileSize - 1) / uint2(tileSize, tileSize));
     uint maxPossible = gridDim.x * gridDim.y;
 
     if (mTileSizeChanged)
@@ -221,10 +219,23 @@ void MegakernelPathTracer::execute(RenderContext* pRenderContext, const RenderDa
     {
         if (mIncrementalEnabled)
         {
-            //buildSpiralQueue(dict[point_of_change], gridDim);
-            //tileQueue = spiralQueue;
-            buildPrioritizedQueue(gridDim);
-            tileQueue = prioritizedQueue;
+            uint2 poc = (uint2)dict[point_of_change];
+            if (mAutomatedPriority)
+            {
+                int2 mvec = (int2)poc - (int2)objectScreenPos; //screen-space motion vector
+                std::cout << "mvec: " << mvec.x - (amountShifted.x * (int)tileSize) << " " << mvec.y - (amountShifted.y * (int)tileSize) << std::endl;
+                if (abs(mvec.x - (amountShifted.x * (int)tileSize)) + (int)tileSize > (int)tileSize || abs(mvec.y - (amountShifted.y * (int)tileSize)) + (int)tileSize > (int)tileSize) {
+                    objectMoved = true;
+                    shiftChange = (mvec + int2(sign(mvec.x) * (int)tileSize, sign(mvec.y) * (int)tileSize)) / (int)tileSize - amountShifted;
+                }
+                buildPrioritizedQueue(poc, gridDim);
+                tileQueue = prioritizedQueue;
+            }
+            else {
+                buildSpiralQueue(poc, gridDim);
+                tileQueue = spiralQueue;
+            }
+
             renderSamples = highSamples;
             dict[clear_mode] = (int)ClearMode::Incremental;
             dict[high_samples] = (int)highSamples;
@@ -239,9 +250,44 @@ void MegakernelPathTracer::execute(RenderContext* pRenderContext, const RenderDa
 
     if (tileQueue.empty())
     {
-        tileQueue = baseQueue;
-        renderSamples = 1;
-        dict[clear_mode] = (int)ClearMode::ContinuousRefinement;
+        if (mSpiral && !spiralTriggered)
+        {
+            buildSpiralQueue(dict[point_of_change], gridDim);
+            int spiral_tiles = (int)spiralQueue.size();
+            int num_pushed = 0;
+            for (int i = 0; i < spiral_tiles; i++)
+            {
+                uint2 val = spiralQueue.front();
+                int val_idx = val.y * gridDim.x + val.x;
+                auto it_high = std::find(highPriorityTiles.begin(), highPriorityTiles.end(), val_idx);
+                auto it_middle = std::find(middlePriorityTiles.begin(), middlePriorityTiles.end(), val_idx);
+                auto it_low = std::find(lowPriorityTiles.begin(), lowPriorityTiles.end(), val_idx);
+                if (it_high == highPriorityTiles.end() && it_middle == middlePriorityTiles.end() && it_low == lowPriorityTiles.end())
+                {
+                    tileQueue.push(val);
+                    num_pushed++;
+                }
+                spiralQueue.pop();
+            }
+            std::cout << "spiral addition: " << num_pushed << std::endl;
+            renderSamples = std::min(renderSamples, (uint)32);
+            spiralTriggered = true;
+            int num_tiles_pushed = num_pushed + (int)highPriorityTiles.size() + (int)middlePriorityTiles.size() + (int)lowPriorityTiles.size();
+            std::cout << "total size: " << num_tiles_pushed << std::endl;
+            highPriorityTiles.clear();
+            middlePriorityTiles.clear();
+            lowPriorityTiles.clear();
+        }
+        else if (mSpiral && spiralTriggered && !spiralCompleted)
+        {
+            spiralCompleted = true;
+            recomputePriority = true;
+        }
+        else {
+            tileQueue = baseQueue;
+            renderSamples = 1;
+            dict[clear_mode] = (int)ClearMode::ContinuousRefinement;
+        }
     }
 
     if (mpScene)
@@ -361,14 +407,30 @@ void MegakernelPathTracer::execute(RenderContext* pRenderContext, const RenderDa
     endFrame(pRenderContext, renderData);
 
     //if (ClearMode(dict.getValue(clear_mode, 0)) != ClearMode::Incremental) {
-    if ((bool)dict.getValue("right_mouse_clicked", false) || (mIncrementalEnabled && ClearMode(dict.getValue(clear_mode, 0)) == ClearMode::Reset)){
-        const uint* resultDirect = reinterpret_cast<const uint*>(tilePriorityDirect->map(Buffer::MapType::Read));
-        std::copy(resultDirect, resultDirect + (gridDim.x * gridDim.y), directVector.begin());
-        tilePriorityDirect->unmap();
+    if ((bool)dict.getValue("right_mouse_clicked", false) || recomputePriority) {
+        if (recomputePriority && recomputePriorityFirstTime)
+        {
+            //wait one frame after update complete
+            recomputePriorityFirstTime = false;
+        }
+        else {
+            const uint* resultDirect = reinterpret_cast<const uint*>(tilePriorityDirect->map(Buffer::MapType::Read));
+            std::copy(resultDirect, resultDirect + (gridDim.x * gridDim.y), directVector.begin());
+            tilePriorityDirect->unmap();
 
-        const uint* resultIndirect = reinterpret_cast<const uint*>(tilePriorityIndirect->map(Buffer::MapType::Read));
-        std::copy(resultIndirect, resultIndirect + (gridDim.x * gridDim.y), indirectVector.begin());
-        tilePriorityIndirect->unmap();
+            const uint* resultIndirect = reinterpret_cast<const uint*>(tilePriorityIndirect->map(Buffer::MapType::Read));
+            std::copy(resultIndirect, resultIndirect + (gridDim.x * gridDim.y), indirectVector.begin());
+            tilePriorityIndirect->unmap();
+
+            objectMoved = true;
+            if (dict.keyExists(point_of_change))
+                objectScreenPos = (uint2)dict[point_of_change];
+            amountShifted = uint2(0, 0);
+            shiftChange = uint2(0, 0);
+            recomputePriority = false;
+            recomputePriorityFirstTime = true;
+        }
+
     }
 
     if (exportPriority)
@@ -377,29 +439,120 @@ void MegakernelPathTracer::execute(RenderContext* pRenderContext, const RenderDa
         writeToFile(indirectVector, "prioInd" + std::to_string(exportCounter) + ".bin", gridDim);
         exportPriority = false;
         exportCounter++;
+        std::cout << "Exported Priority to file prioDir" << std::to_string(exportCounter) << ".bin" << std::endl;
     }
-    
+
     std::vector<uint> reset_data(gridDim.x * gridDim.y);
     tilePriorityDirect->setBlob(reset_data.data(), 0, reset_data.size() * sizeof(uint));
     tilePriorityIndirect->setBlob(reset_data.data(), 0, reset_data.size() * sizeof(uint));
 }
 
-void MegakernelPathTracer::buildPrioritizedQueue(uint2 gridDim)
+void MegakernelPathTracer::updatePriorityTiles(uint2 gridDim)
 {
-    std::queue<int2> empty;
-    prioritizedQueue.swap(empty);
+    /*highPriorityTiles.clear();
+    middlePriorityTiles.clear();
+    lowPriorityTiles.clear();*/
 
-    std::vector<int> highPriorityTiles;
+    amountShifted += shiftChange;
+
+    std::vector<int> highPrio;
     for (int i = 0; i < directVector.size(); i++)
     {
         if (directVector[i] > 0)
         {
-            highPriorityTiles.push_back(i);
-            prioritizedQueue.push(uint2(i%gridDim.x, i/gridDim.x));
+            int2 tile_pos = int2(i % gridDim.x, i / gridDim.x) + amountShifted;
+            int tile_idx = tile_pos.y * gridDim.x + tile_pos.x;
+            auto it_high = std::find(highPriorityTiles.begin(), highPriorityTiles.end(), tile_idx);
+            auto it_middle = std::find(middlePriorityTiles.begin(), middlePriorityTiles.end(), tile_idx);
+            auto it_low = std::find(lowPriorityTiles.begin(), lowPriorityTiles.end(), tile_idx);
+            if (it_high == highPriorityTiles.end()) {
+                highPrio.push_back(tile_idx);
+            }
+            if (it_middle != middlePriorityTiles.end())
+            {
+                middlePriorityTiles.erase(it_middle);
+            }
+            if (it_low != lowPriorityTiles.end())
+            {
+                lowPriorityTiles.erase(it_low);
+            }
         }
     }
+    std::cout << highPrio.size() << std::endl;
+    highPriorityTiles.insert(highPriorityTiles.begin(), highPrio.begin(), highPrio.end());
+
+    auto max_it = std::max_element(indirectVector.begin(), indirectVector.end());
+    uint max_indirect = *max_it;
+    for (int i = 0; i < indirectVector.size(); i++)
+    {
+        int2 tile_pos = int2(i % gridDim.x, i / gridDim.x) + amountShifted;
+        int tile_idx = tile_pos.y * gridDim.x + tile_pos.x;
+        
+        if (indirectVector[i] > 2 * max_indirect / 3)
+        {
+            auto it_high = std::find(highPriorityTiles.begin(), highPriorityTiles.end(), tile_idx);
+            auto it_middle = std::find(middlePriorityTiles.begin(), middlePriorityTiles.end(), tile_idx);
+            auto it_low = std::find(lowPriorityTiles.begin(), lowPriorityTiles.end(), tile_idx);
+            if (it_high == highPriorityTiles.end()) {
+                highPriorityTiles.push_back(tile_idx);
+            }
+            if (it_middle != middlePriorityTiles.end())
+            {
+                middlePriorityTiles.erase(it_middle);
+            }
+            if (it_low != lowPriorityTiles.end())
+            {
+                lowPriorityTiles.erase(it_low);
+            }
+        }
+        else if (indirectVector[i] > max_indirect / 3)
+        {
+            auto it_high = std::find(highPriorityTiles.begin(), highPriorityTiles.end(), i);
+            auto it_middle = std::find(middlePriorityTiles.begin(), middlePriorityTiles.end(), i);
+            auto it_low = std::find(lowPriorityTiles.begin(), lowPriorityTiles.end(), i);
+            bool not_found = (it_high == highPriorityTiles.end() && it_middle == middlePriorityTiles.end() && it_low == lowPriorityTiles.end());
+            if(not_found) middlePriorityTiles.push_back(i);
+        }
+        else if (indirectVector[i] > max_indirect / 6) {
+            auto it_high = std::find(highPriorityTiles.begin(), highPriorityTiles.end(), i);
+            auto it_middle = std::find(middlePriorityTiles.begin(), middlePriorityTiles.end(), i);
+            auto it_low = std::find(lowPriorityTiles.begin(), lowPriorityTiles.end(), i);
+            bool not_found = (it_high == highPriorityTiles.end() && it_middle == middlePriorityTiles.end() && it_low == lowPriorityTiles.end());
+            if (not_found) lowPriorityTiles.push_back(i);
+        }
+    }
+}
+
+void MegakernelPathTracer::buildPrioritizedQueue(uint2 point_of_change, uint2 gridDim)
+{
+    std::queue<int2> empty;
+    prioritizedQueue.swap(empty);
+
+    if (objectMoved || highPriorityTiles.empty() || middlePriorityTiles.empty() || lowPriorityTiles.empty()) {
+        updatePriorityTiles(gridDim);
+        objectMoved = false;
+    }
+
     highSamples = highPriorityTiles.size() > 0 ? (int)((gridDim.x * gridDim.y) / (float)highPriorityTiles.size()) : 64;
-    std::cout << highPriorityTiles.size() << " " << highSamples << std::endl;
+    if (highSamples % 2 != 0) highSamples -= 1;
+
+    for (int index : highPriorityTiles)
+    {
+        int2 tile_pos = uint2(index % gridDim.x, index / gridDim.x);
+        prioritizedQueue.push(tile_pos);
+    }
+    for (int index : middlePriorityTiles)
+    {
+        int2 tile_pos = uint2(index % gridDim.x, index / gridDim.x);
+        prioritizedQueue.push(tile_pos);
+    }
+    for (int index : lowPriorityTiles)
+    {
+        int2 tile_pos = uint2(index % gridDim.x, index / gridDim.x);
+        prioritizedQueue.push(tile_pos);
+    }
+    spiralCompleted = false;
+    spiralTriggered = false;
 }
 
 void MegakernelPathTracer::buildSpiralQueue(uint2 point_of_change, uint2 gridDim)
@@ -496,6 +649,7 @@ void MegakernelPathTracer::renderUI(Gui::Widgets& widget)
 {
 #if DEBUG_UI
     widget.checkbox("Incremental Update?", mIncrementalEnabled);
+    widget.checkbox("Automated Priority?", mAutomatedPriority);
     if (widget.button("Export Priority"))
     {
         exportPriority = true;
@@ -515,17 +669,55 @@ void MegakernelPathTracer::setMethod(uint32_t method)
 {
     switch (method)
     {
-    case 0:
+    case 0: //1spp
         mIncrementalEnabled = false;
+        mAutomatedPriority = false;
+        mEyetracking = false;
+        mSpiral = false;
         break;
-    case 1:
+    case 1: //global
         mIncrementalEnabled = false;
+        mAutomatedPriority = false;
+        mEyetracking = false;
+        mSpiral = false;
         break;
     case 2:
         mIncrementalEnabled = true;
+        mAutomatedPriority = false;
+        mEyetracking = false;
+        highSamples = 64;
+        mSpiral = false;
         break;
     case 3:
         mIncrementalEnabled = true;
+        mAutomatedPriority = false;
+        mEyetracking = false;
+        highSamples = 64;
+        mSpiral = false;
+        break;
+    case 4: //auto noisy
+        mIncrementalEnabled = true;
+        mAutomatedPriority = true;
+        mEyetracking = false;
+        mSpiral = true;
+        break;
+    case 5: //auto denoised
+        mIncrementalEnabled = true;
+        mAutomatedPriority = true;
+        mEyetracking = false;
+        mSpiral = false;
+        break;
+    case 6: //eye tracking
+        mIncrementalEnabled = true;
+        mAutomatedPriority = false;
+        mEyetracking = true;
+        mSpiral = false;
+        break;
+    case 7: //auto + spiral
+        mIncrementalEnabled = true;
+        mAutomatedPriority = true;
+        mEyetracking = false;
+        mSpiral = true;
         break;
     default:
         break;
