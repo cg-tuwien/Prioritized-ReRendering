@@ -352,7 +352,7 @@ void OptixDenoiser_::execute(RenderContext* pRenderContext, const RenderData& re
                 mIncrementalCounter = 1;
                 spiralMax = uint2(0, 0);
                 spiralMin = renderData.getDefaultTextureDims();
-                mDenoiser.params.blendFactor = 0.2f;
+                mDenoiser.params.blendFactor = 0.0f;
                 mDenoiser.params.denoiseAlpha = 1u;
                 mDenoiser.modelKind = OptixDenoiserModelKind::OPTIX_DENOISER_MODEL_KIND_HDR;
             }
@@ -375,6 +375,7 @@ void OptixDenoiser_::execute(RenderContext* pRenderContext, const RenderData& re
             halfSpiralR = spiralMax - poc;
             halfSpiralL = poc - spiralMin;
             spiralSize = halfSpiralR + halfSpiralL;
+
             spiralSize = uint2(spiralSize.x - spiralSize.x % 8, spiralSize.y - spiralSize.y % 8);
             halfSpiralL -= (halfSpiralR + halfSpiralL) - spiralSize;
             offset = uint2(poc.x, poc.y);
@@ -756,7 +757,7 @@ void OptixDenoiser_::setMethod(uint32_t method)
         break;
     case 6: //eye tracking
         mEnabled = true;
-        mIncrementalEnabled = false;
+        mIncrementalEnabled = true;
         mGlobalDuringIncremental = true;
         break;
     case 7: //auto + spiral

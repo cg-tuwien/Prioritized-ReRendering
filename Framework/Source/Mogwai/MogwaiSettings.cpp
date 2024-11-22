@@ -232,13 +232,20 @@ namespace Mogwai
 
         Gui::DropdownList methodList;
         methodList.push_back({ 0, "1spp" });
-        methodList.push_back({ 1, "Method A: global" });
+        /*methodList.push_back({1, "Method A: global"});
         methodList.push_back({ 2, "Method B: incr. noisy" });
         methodList.push_back({ 3, "Method C: incr: denoised" });
         methodList.push_back({ 4, "auto incr. noisy" });
         methodList.push_back({ 5, "auto incr. denoised" });
         methodList.push_back({ 6, "Eye Tracking" });
-        methodList.push_back({ 7, "auto + spiral" });
+        methodList.push_back({ 7, "auto + spiral" });*/
+        methodList.push_back({ 1, "Method A" });
+        methodList.push_back({ 2, "Method B" });
+        methodList.push_back({ 3, "Method C" });
+        methodList.push_back({ 4, "Method D" });
+        methodList.push_back({ 5, "Method G" });
+        methodList.push_back({ 6, "Method F" });
+        methodList.push_back({ 7, "Method E" });
         if (w.dropdown("Method", methodList, mMethod))
         {
             if(pActiveGraph->getPass("OptixDenoiser")) pActiveGraph->getPass("OptixDenoiser")->setMethod(mMethod);

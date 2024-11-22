@@ -673,9 +673,10 @@ namespace Mogwai
             AccumulatePass::SharedPtr ap = std::dynamic_pointer_cast<AccumulatePass>(mGraphs[mActiveGraph].pGraph->getPass("AccumulatePass"));
             const int threshold = 1;
             const int threshold_before = 1024;
-            const int frames_in_movement = 2;
-            const int frames_in_rest = 2;
+            const int frames_in_movement = 100;
+            const int frames_in_rest = 100;
             const int frames_before = 1;
+            const bool position = true;
             if (resetNextFrame > 0)
             {
                 //std::this_thread::sleep_for(std::chrono::seconds(4));
@@ -710,7 +711,7 @@ namespace Mogwai
             {
                 if (frameCounter >= frames_before)
                 {
-                    ip->animate();
+                    ip->animate(position);
                     resetNextFrame = 1;
                 }
                 else if (frameCounter < frames_before)

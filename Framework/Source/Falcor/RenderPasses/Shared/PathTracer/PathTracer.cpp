@@ -167,6 +167,7 @@ namespace Falcor
     {
         bool dirty = false;
 
+#if DEBUG_UI
         dirty |= widget.var("Samples/pixel", mSharedParams.samplesPerPixel, 1u, 1u << 16, 1);
         if ((dirty |= widget.var("Light samples/vertex", mSharedParams.lightSamplesPerVertex, 1u, kMaxLightSamplesPerVertex))) recreateVars();  // Trigger recreation of the program vars.
         widget.tooltip("The number of shadow rays that will be traced at each path vertex.\n"
@@ -229,6 +230,7 @@ namespace Falcor
                 widget.tooltip("Ray footprint integrates material roughness into calculation.");
             }
         }
+#endif
 
         // Draw sub-groups for various options.
         dirty |= renderSamplingUI(widget);
@@ -247,6 +249,7 @@ namespace Falcor
     {
         bool dirty = false;
 
+#if DEBUG_UI
         if (auto samplingGroup = widget.group("Sampling", true))
         {
             // Importance sampling controls.
@@ -344,12 +347,14 @@ namespace Falcor
             samplingGroup.tooltip("Forces a fixed random seed for each frame.\n\n"
                 "This should produce exactly the same image each frame, which can be useful for debugging using print() and otherwise.", true);
         }
+#endif
 
         return dirty;
     }
 
     void PathTracer::renderLoggingUI(Gui::Widgets& widget)
     {
+#if DEBUG_UI
         if (auto logGroup = widget.group("Logging"))
         {
             // Pixel stats.
@@ -358,6 +363,7 @@ namespace Falcor
             // Pixel debugger.
             mpPixelDebug->renderUI(logGroup);
         }
+#endif
     }
 
     void PathTracer::setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScene)

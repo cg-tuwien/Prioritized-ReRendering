@@ -215,6 +215,11 @@ void MegakernelPathTracer::execute(RenderContext* pRenderContext, const RenderDa
 
     InternalDictionary& dict = renderData.getDictionary();
 
+    if (dict.keyExists("left_mouse_clicked") && dict["left_mouse_clicked"])
+    {
+        focusPoint = (uint2)dict["focus_point"];
+    }
+
     if (dict.keyExists(point_of_change) && dict[change_occured])
     {
         if (mIncrementalEnabled)
@@ -230,6 +235,13 @@ void MegakernelPathTracer::execute(RenderContext* pRenderContext, const RenderDa
                 }
                 buildPrioritizedQueue(poc, gridDim);
                 tileQueue = prioritizedQueue;
+            }
+            else if (mEyetracking)
+            {
+                /*int2 mvec = (int2)poc - (int2)objectScreenPos;
+                focusPoint += mvec;*/
+                buildEyetrackingQueue(poc, gridDim);
+                tileQueue = eyetrackingQueue;
             }
             else {
                 buildSpiralQueue(poc, gridDim);
@@ -293,6 +305,7 @@ void MegakernelPathTracer::execute(RenderContext* pRenderContext, const RenderDa
             firstTimeReset = false;
         }
         else {
+            // switch from incremental back to base order
             tileQueue = baseQueue;
             renderSamples = 1;
             dict[clear_mode] = (int)ClearMode::ContinuousRefinement;
@@ -471,26 +484,29 @@ void MegakernelPathTracer::updatePriorityTiles(uint2 gridDim)
         {
             int2 tile_pos = int2(i % gridDim.x, i / gridDim.x) + amountShifted;
             int tile_idx = tile_pos.y * gridDim.x + tile_pos.x;
+
+            // if was previously categorized as middle/low priority, remove and add to high prio (if not already in high prio)
             auto it_high = std::find(highPriorityTiles.begin(), highPriorityTiles.end(), tile_idx);
             auto it_middle = std::find(middlePriorityTiles.begin(), middlePriorityTiles.end(), tile_idx);
             auto it_low = std::find(lowPriorityTiles.begin(), lowPriorityTiles.end(), tile_idx);
-            if (it_high == highPriorityTiles.end()) {
+            if (it_high == highPriorityTiles.end()) // if shifted tile index not already in high, add
+            {
                 highPrio.push_back(tile_idx);
             }
-            if (it_middle != middlePriorityTiles.end())
+            if (it_middle != middlePriorityTiles.end()) // if found in middle, remove
             {
                 middlePriorityTiles.erase(it_middle);
             }
-            if (it_low != lowPriorityTiles.end())
+            if (it_low != lowPriorityTiles.end()) // if found in low, remove
             {
                 lowPriorityTiles.erase(it_low);
             }
 
-            // remove again
-            auto it_high2 = std::find(highPriorityTiles.begin(), highPriorityTiles.end(), i);
+            // if object is in movement, remove old tiles again, so there is no trail
+            /*auto it_high2 = std::find(highPriorityTiles.begin(), highPriorityTiles.end(), i);
             auto it_middle2 = std::find(middlePriorityTiles.begin(), middlePriorityTiles.end(), i);
             auto it_low2 = std::find(lowPriorityTiles.begin(), lowPriorityTiles.end(), i);
-            if (it_high2 == highPriorityTiles.end()) {
+            if (it_high2 == highPriorityTiles.end()) { // if i not already in high, add
                 highPrio.push_back(i);
             }
             if (it_middle2 != middlePriorityTiles.end())
@@ -500,12 +516,12 @@ void MegakernelPathTracer::updatePriorityTiles(uint2 gridDim)
             if (it_low2 != lowPriorityTiles.end())
             {
                 lowPriorityTiles.erase(it_low2);
-            }
+            }*/
         }
     }
-    std::cout << highPrio.size() << std::endl;
-    highPriorityTiles.insert(highPriorityTiles.begin(), highPrio.begin(), highPrio.end());
+    std::cout << "High Prio Size: " << highPrio.size() << std::endl;
 
+    highPriorityTiles.insert(highPriorityTiles.begin(), highPrio.begin(), highPrio.end());
     auto max_it = std::max_element(indirectVector.begin(), indirectVector.end());
     uint max_indirect = *max_it;
     for (int i = 0; i < indirectVector.size(); i++)
@@ -558,7 +574,7 @@ void MegakernelPathTracer::buildPrioritizedQueue(uint2 point_of_change, uint2 gr
         objectMoved = false;
     }
 
-    highSamples = highPriorityTiles.size() > 0 ? (int)((gridDim.x * gridDim.y) / (float)highPriorityTiles.size()) : 64;
+    highSamples = highPriorityTiles.size() > 0 ? (int)((gridDim.x * gridDim.y) / (float)highPriorityTiles.size()) : 32;
     if (highSamples % 2 != 0) highSamples -= 1;
 
     for (int index : highPriorityTiles)
@@ -611,6 +627,65 @@ void MegakernelPathTracer::buildSpiralQueue(uint2 point_of_change, uint2 gridDim
             if (x >= 0 && y >= 0 && x < (int)gridDim.x && y < (int)gridDim.y)
             {
                 spiralQueue.push(uint2(x, y));
+            }
+        }
+        direction = (direction + 1) % 4;
+
+        // every two turns the step size increases
+        if ((direction % 2) == 0)
+            steps++;
+    }
+}
+
+void MegakernelPathTracer::buildEyetrackingQueue(uint2 point_of_change, uint2 gridDim)
+{
+    uint2 grid_PoC = point_of_change / uint2(tileSize, tileSize);
+    uint2 grid_PoF = focusPoint / uint2(tileSize, tileSize);
+
+    std::queue<int2> empty;
+    eyetrackingQueue.swap(empty);
+
+    eyetrackingQueue.push(grid_PoC);
+    eyetrackingQueue.push(grid_PoF);
+
+    int x_C = grid_PoC.x;
+    int y_C = grid_PoC.y;
+    int x_F = grid_PoF.x;
+    int y_F = grid_PoF.y;
+    int steps = 1;
+    int direction = 0;
+
+    std::vector<uint2> tiles;
+
+    while (eyetrackingQueue.size() < gridDim.x * gridDim.y)
+    {
+        for (int j = 0; j < steps; j++) {
+            switch (direction)
+            {
+            case 0: x_C++; x_F++; break; //RIGHT
+            case 1: y_C++; y_F++; break; //DOWN
+            case 2: x_C--; x_F--; break; //LEFT
+            case 3: y_C--; y_F--; break; //UP
+            }
+
+            // unoptimal solution for the fact that the PoC may not be centered
+            // and the grid may not be symmetrical
+            // TODO: optimize this
+            if (x_C >= 0 && y_C >= 0 && x_C < (int)gridDim.x && y_C < (int)gridDim.y)
+            {
+                auto it = std::find(tiles.begin(), tiles.end(), uint2(x_C, y_C));
+                if (it == tiles.end()) {
+                    eyetrackingQueue.push(uint2(x_C, y_C));
+                    tiles.push_back(uint2(x_C, y_C));
+                }
+            }
+            if (x_F >= 0 && y_F >= 0 && x_F < (int)gridDim.x && y_F < (int)gridDim.y)
+            {
+                auto it = std::find(tiles.begin(), tiles.end(), uint2(x_F, y_F));
+                if (it == tiles.end()) {
+                    eyetrackingQueue.push(uint2(x_F, y_F));
+                    tiles.push_back(uint2(x_F, y_F));
+                }
             }
         }
         direction = (direction + 1) % 4;
@@ -737,6 +812,7 @@ void MegakernelPathTracer::setMethod(uint32_t method)
         mAutomatedPriority = false;
         mEyetracking = true;
         mSpiral = false;
+        highSamples = 64;
         break;
     case 7: //auto + spiral
         mIncrementalEnabled = true;

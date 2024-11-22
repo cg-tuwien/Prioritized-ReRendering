@@ -149,7 +149,7 @@ private:
     bool                        mMethodSwitched = false;
     uint8_t                     mIncrementalCounter = 0;
     int                         mMaxFrameBlend = 10;
-    bool                        mBlend = false;
+    bool                        mBlend = true;
     Texture::SharedPtr          tex;
 
     uint4 lastDenoisedFramePosition;

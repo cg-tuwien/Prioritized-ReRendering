@@ -41,6 +41,7 @@ namespace
     const char point_of_change[] = "point_of_change";
     const char change_occured[] = "change_occured";
     const char background_pixel[] = "background_pixel";
+    const char focus_point[] = "focus_point";
 
     const std::string kOutput = "output";
 
@@ -247,6 +248,7 @@ void InteractionPass::execute(RenderContext* pRenderContext, const RenderData& r
         pRenderContext->flush(false);
         mpFence->gpuSignal(pRenderContext->getLowLevelData()->getCommandQueue());
         dict["right_mouse_clicked"] = false;
+        dict["left_mouse_clicked"] = false;
 
         if (mRightMouseClicked)
         {
@@ -297,6 +299,12 @@ void InteractionPass::execute(RenderContext* pRenderContext, const RenderData& r
             mRightMouseClicked = false;
             mPixelDataAvailable = true;
         }
+        if (mLeftMouseClicked)
+        {
+            dict[focus_point] = mFocusPoint;
+            dict["left_mouse_clicked"] = true;
+            mLeftMouseClicked = false;
+        }
         dict["num_selected_obj"] = (int)selectedObj.size();
 
         //Set parameters for path-tracer
@@ -307,7 +315,7 @@ void InteractionPass::execute(RenderContext* pRenderContext, const RenderData& r
             {
                 setSelectedPixelToObjectCenter();
             }
-            else // environment map changes
+            else // environment map changes or reset transform
             {
                 mParams.selectedPixel = 0.5f * (float2)mParams.frameDim;
                 mUserChangedScene = false;
@@ -395,13 +403,13 @@ void InteractionPass::setSelectedPixelToObjectCenter() {
         mpScene->selectCamera(0);
         auto camera = mpScene->getCamera();
         auto& viewProjMatrix = camera->getViewProjMatrix();
-        //  mParams.selectedPixel = viewProjMatrix * Falcor::float4(mTranslation, 1);
+        //mParams.selectedPixel = viewProjMatrix * Falcor::float4(mTranslation, 1);
         Falcor::float2 screenDims = mParams.frameDim;
         Falcor::float4 pixel = viewProjMatrix * transform * Falcor::float4(center, 1);
         pixel.x = pixel.x / pixel.w;
         pixel.y = pixel.y / pixel.w;
-        /* pixel.x = (pixel.x + 1) * 0.5 * mParams.frameDim.x;
-         pixel.y = (1 - pixel.y) * 0.5 * mParams.frameDim.y;*/
+        /*pixel.x = (pixel.x + 1) * 0.5 * mParams.frameDim.x;
+        pixel.y = (1 - pixel.y) * 0.5 * mParams.frameDim.y;*/
         double pixel_x = (pixel.x + 1) * 0.5 * screenDims.x;
         double pixel_y = (1 - pixel.y) * 0.5 * screenDims.y;
 
@@ -429,6 +437,12 @@ bool InteractionPass::onMouseEvent(const MouseEvent& mouseEvent)
         mParams.selectedPixel = (uint2)glm::clamp(cursorPos, float2(0.f), float2(mParams.frameDim.x - 1, mParams.frameDim.y - 1));
         mRightMouseClicked = true;
     }
+    if (mouseEvent.type == MouseEvent::Type::ButtonDown && mouseEvent.button == Input::MouseButton::Left)
+    {
+        float2 cursorPos = mouseEvent.pos * (float2)mParams.frameDim;
+        mFocusPoint = (uint2)glm::clamp(cursorPos, float2(0.f), float2(mParams.frameDim.x - 1, mParams.frameDim.y - 1));
+        mLeftMouseClicked = true;
+    }
 
     return false;
 }
@@ -444,7 +458,7 @@ void InteractionPass::renderUI(Gui::Widgets& widget)
 #if DEBUG_UI
         widget.var("Selected pixel", mParams.selectedPixel);
 #endif
-
+        widget.var("Focus Point", mFocusPoint);
         if (mPixelDataAvailable)
         {
             std::ostringstream oss;
@@ -494,8 +508,7 @@ void InteractionPass::renderUI(Gui::Widgets& widget)
                 mUserChangedScene = widget.var("Scaling", selectedObj[0].mScaling) || mUserChangedScene;
                 mUserChangedScene = widget.var("Rotation", selectedObj[0].mRotation) || mUserChangedScene;
 
-                reset = widget.button("Reset Transform");
-                if (reset)
+                if (widget.button("Reset Transform"))
                 {
                     selectedObj[0].mTranslation = transValList[selectedObj[0].mpPixelData.meshInstanceID];
                     selectedObj[0].mScaling = float3(1);

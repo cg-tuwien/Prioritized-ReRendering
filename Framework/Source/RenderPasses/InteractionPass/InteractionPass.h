@@ -118,10 +118,17 @@ public:
     virtual bool onKeyEvent(const KeyboardEvent& keyEvent) override { return false; }
 
     bool getReset() { return reset; }
-    void animate() {
+    void animate(bool position) {
         logInfo("animate");
-        //selectedObj[0].mTranslation = selectedObj[0].mTranslation + float3(0, 0, 0.005);
-        std::dynamic_pointer_cast<StandardMaterial>(mpScene->getMaterial(selectedObj[0].mpPixelData.materialID))->setMetallic(1);
+        if (position)
+        {
+            selectedObj[0].mTranslation = selectedObj[0].mTranslation + float3(0, 0.005, 0);
+        }
+        else
+        {
+            float current = std::dynamic_pointer_cast<StandardMaterial>(mpScene->getMaterial(selectedObj[0].mpPixelData.materialID))->getMetallic();
+            std::dynamic_pointer_cast<StandardMaterial>(mpScene->getMaterial(selectedObj[0].mpPixelData.materialID))->setMetallic(current + 0.01f);
+        }
         mUserChangedScene = true;
     }
     bool shouldAnimate() {
@@ -204,6 +211,8 @@ private:
 
     bool mPixelDataAvailable = false;
     bool mRightMouseClicked = false;
+    bool mLeftMouseClicked = false;
+    uint2 mFocusPoint = uint2(960, 540);
     bool mUserChangedScene = false;
     bool backgroundPixelSelected = false;
 

@@ -63,6 +63,7 @@ private:
     void setTracerData(const RenderData& renderData);
     void buildSpiralQueue(uint2 point_of_change, uint2 gridDim);
     void buildPrioritizedQueue(uint2 point_of_change, uint2 gridDim);
+    void buildEyetrackingQueue(uint2 point_of_change, uint2 gridDim);
     void updatePriorityTiles(uint2 gridDim);
 
     ComputeProgram::SharedPtr   mpProgram;   ///< Accumulation programs, one per mode.
@@ -88,6 +89,7 @@ private:
     uint2 objectScreenPos = uint2(0, 0);
     int2 amountShifted = int2(-1, 1);
     int2 shiftChange = int2(0, 0);
+    uint2 focusPoint = uint2(960, 540);
 
     std::vector<int2> blockUpdates;
     std::vector<int2> emptyUpdates;
@@ -99,6 +101,7 @@ private:
     std::queue<int2> baseQueue;
     std::queue<int2> spiralQueue;
     std::queue<int2> prioritizedQueue;
+    std::queue<int2> eyetrackingQueue;
 
     bool reset;
     bool mIncrementalEnabled = false;
