@@ -24,7 +24,7 @@ out_path <- "plots/"
 file_ending <- ".pdf"
 dir.create(file.path(out_path), showWarnings = FALSE)
 
-data_all <- read.csv("data.csv")
+data_all <- read.csv("data_auto.csv")
 
 ################################################################################
 #####################          Functions            ############################
@@ -386,7 +386,7 @@ names(data_tlx_diffs) <- c("diffs_a_fav", "diffs_a_b", "diffs_a_c", "diffs_b_c",
 data_tlx_diffs_by_task <- data.frame(bla=rep(1,nrow(data_tlx)))
 for (i in 1:4)
 {
-  data_tlx_diffs_by_task <- cbind(data_tlx_diffs_by_task, data_tlx_diffs[data_tlx_diffs$task=="Small Objects", c(i,5)][1], data_tlx_diffs[data_tlx_diffs$task=="Large Objects", c(i,5)][1], data_tlx_diffs[data_tlx_diffs$task=="Lights", c(i,5)][1])
+  data_tlx_diffs_by_task <- cbind(data_tlx_diffs_by_task, data_tlx_diffs[data_tlx_diffs$task=="Material Edit", c(i,5)][1], data_tlx_diffs[data_tlx_diffs$task=="Translation Edit", c(i,5)][1], data_tlx_diffs[data_tlx_diffs$task=="Light Edit", c(i,5)][1])
 }
 colnames(data_tlx_diffs_by_task) <- c("task", paste0(rep("values",12), "_", rep(1:3,4), "_", rep(diff_short_labes, each=3)))
 
@@ -398,102 +398,6 @@ get_summary_stats(data_tlx_diff_c_b, type = "full")
 get_summary_stats(data_tlx_diff_a_fav, type = "full")
 tlx_favorites_freq
 summary(tlx_favorites)
-
-
-################################################################################
-#####################     Correlations              ############################
-################################################################################
-
-#Cramers V = effect size for all
-#df = 2 -> large if >0.35
-catcorrm <- function(vars, dat) sapply(vars, function(y) sapply(vars, function(x) assocstats(table(dat[,x], dat[,y]))$cramer))
-cormat <- catcorrm(c("fav_1", "fav_2", "fav_3", "fav_overall", "fav_stated"), tlx_favorites)
-rownames(cormat)<-c("small obj.", "large obj.", "lights", "majority vote", "stated")
-colnames(cormat)<-c("small obj.", "large obj.", "lights", "majority vote", "stated")
-cormat
-catp <- function(vars, dat) sapply(vars, function(y) sapply(vars, function(x) fisher.test(table(dat[,x], dat[,y]))$p))
-pmat <- catp(c("fav_1", "fav_2", "fav_3", "fav_overall", "fav_stated"), tlx_favorites)
-rownames(pmat)<-c("small obj.", "large obj.", "lights", "majority vote", "stated")
-colnames(pmat)<-c("small obj.", "large obj.", "lights", "majority vote", "stated")
-pmat
-pdf(file=paste0(out_path,"fav_assoc.pdf"), width=10, height=10)
-corrplot(cormat, p.mat=pmat, insig='label_sig', type='lower', diag = FALSE, addCoef.col = 'black', number.cex=1.5,tl.srt=45,
-         tl.cex = 1.5, tl.pos = 'ld', cl.pos = 'n', col = COL2('PiYG'), tl.col = 'black', mar=c(2,2,2,2), cex.main=2)
-mtext(text = "Association (Cramer's V) between Favorites", side = 3, line = 0.5, cex=2)
-dev.off()
-
-con_group <- table(tlx_favorites$fav_overall_group, tlx_favorites$fav_stated_group)
-fisher.test(con_group)
-cohen.kappa(con_group, n.obs=21)
-
-#McNemar on 2x2, if >0.05 all entries are the same
-#mcnemar all values need to be different -> not suitable
-tlx_fav <- data.frame(tlx_favorites$participant)
-tlx_fav["stated_A"] <- as.factor(tlx_favorites$fav_stated == "A")
-tlx_fav["chose_A"] <- as.factor(tlx_favorites$fav_overall == "A")
-tlx_fav["chose_stated"] <- as.factor(tlx_favorites$fav_overall == tlx_favorites$fav_stated)
-#tlx_fav$chose_A[is.na(tlx_fav$chose_A)] <- "FALSE"
-tlx_fav$chose_A <- factor(tlx_fav$chose_A, levels=c("TRUE", "FALSE"))
-tlx_fav$stated_A <- factor(tlx_fav$stated_A, levels=c("TRUE", "FALSE"))
-tlx_fav$chose_stated <- factor(tlx_fav$chose_stated, levels=c("TRUE", "FALSE"))
-con <- table(tlx_fav$chose_A, tlx_fav$stated_A)
-con
-con1 <- table(tlx_fav$chose_stated, tlx_fav$chose_A)
-con1
-
-cohen.kappa(con, n.obs=21-4)
-#mcnemar.test(con, correct=TRUE)
-chisq.test(con)
-fisher.test(con)
-oddsratio(con)
-
-
-contingency_table<-table(tlx_favorites$fav_overall,tlx_favorites$fav_stated)
-contingency_table
-mosaicplot(contingency_table)
-cramerV(contingency_table, bias.correct = FALSE) # should equal entry in matrix above
-
-csq <- chisq.test(contingency_table)
-csq
-csq$expected
-#expected values in one of the cells of the contingency table is less than 5, and in this case the Fisher’s exact test is preferred (McCrum-Gardner 2008; Bower 2003).
-fisher.test(contingency_table)
-GTest(contingency_table)
-
-mat_residuals <- round(csq$residuals, 3)
-rownames(mat_residuals) <- method_labels
-colnames(mat_residuals) <- method_labels
-pdf(file=paste0(out_path, "residuals.pdf"), width=10, height=10)
-corrplot(mat_residuals, is.cor = FALSE, addCoef.col = 'black', tl.cex = 1.5,col = COL2('PiYG'),tl.col = 'black', cex.main=1, number.cex=1.5, mar = c(0,4,7,4),col.lim=c(-1.6,1.6),tl.srt=45, tl.offset=1)
-mtext(text = expression(bold("Majority Vote Favorite")), side = 2, line = 2, cex=1.5)
-mtext(text = expression(bold("Stated Favorite")), side = 3, line = -2, cex=1.5)
-mtext(text = expression(paste("Residuals of ", chi^2, " test between evualuated and stated Favorite")), side = 3, line = 1, cex=2)
-dev.off()
-
-# nur für unabhängige rater
-# >0.2 Fair, >0.4 Moderate, >0.6 Substantial
-cohen_weights <- matrix(c(
-  0,1,1,
-  1,0,1,
-  1,1,0),ncol=3)
-cohen.kappa(contingency_table, cohen_weights, n.obs=21-4)
-
-mat<-cor(data_tlx_sum[-1])
-testRes <- cor.mtest(data_tlx_sum[-1], conf.level = 0.95)
-corrplot(mat, method = 'color', type = 'lower', diag = FALSE, tl.col = 'black',tl.srt = 45, addrect = 2, p.mat = testRes$p, sig.level = 0.01,insig='blank',addCoef.col ='black',)$corrPos -> p1
-text(p1$x, p1$y, round(p1$corr, 2))
-
-con <- table(tlx_favorites$fav_stated, data_meta$reversed)
-con
-fisher.test(con)
-test<-glm(fav_stated ~ fav_overall, data=tlx_favorites, family = 'binomial')
-summary(test)
-
-con <- table(tlx_favorites$fav_stated, data_meta$participation)
-con
-fisher.test(con)
-test<-glm(fav_stated ~ participation, data=data_meta, family = 'binomial')
-summary(test)
 
 ################################################################################
 #####################     Plot Nasa-tlx data        ############################
@@ -527,17 +431,90 @@ ggsave(paste0(out_path, "differences", file_ending), width=14, height=7)
 data_preference <- data_relevant["preference"]
 data_preference["participants"] = 1:nrow(data_preference)
 data_preference <- aggregate(participants~preference,data_preference,length)
-data_preference$method <- factor(data_preference$preference)
-data_preference$preference <- factor(c("Global\nUpdate", "Incremental\nUpdate", "Incremental\nUpdate"), levels=c("Incremental\nUpdate", "Global\nUpdate"))
-levels(data_preference$method) <- method_labels
-pref_plot <- ggplot(data_preference, aes(x=preference, y = participants, fill=method)) + 
+data_preference$preference <- factor(c("Indirection\nAware", "Focus\nBased"), levels=method_labels)
+data_preference[nrow(data_preference) + 1,] = c("Incremental", 0)
+data_preference$participants <- as.integer(data_preference$participants)
+
+pref_plot <- ggplot(data_preference, aes(x=preference, y = participants, fill=preference)) + 
   geom_bar(stat = "identity") + 
-  theme_classic(base_size=23) + 
-  labs(title="Overall prefered Method", subtitle = "Selected in the General Section", fill="Method")+xlab("Preference")+ylab("Number of Participants")+
-  scale_fill_manual(values=color_methods)+
-  scale_y_continuous(expand = c(0, 0), limits = c(0, 14), breaks=c(0,4,8,12))
+  theme_classic(base_size=16) + 
+  theme(legend.position = "bottom", legend.direction = "horizontal") +
+  labs(title="Overall", fill="Method")+xlab("Preference")+ylab("Number of Participants")+
+  scale_fill_manual(values=color_methods, drop=FALSE) +
+  #scale_x_discrete(drop=FALSE) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 3), breaks=c(0,1,2,3))
 pref_plot
-ggsave(paste0(out_path, "preference", file_ending), width=10, height=10)
+ggsave(paste0(out_path, "preference_overall", file_ending), width=10, height=10)
+
+data_preference_material <- data_relevant["preference_material"]
+data_preference_material["participants"] = 1:nrow(data_preference_material)
+data_preference_material <- aggregate(participants~preference_material,data_preference_material,length)
+data_preference_material$preference_material <- factor(c("Indirection\nAware"), levels=method_labels)
+data_preference_material[nrow(data_preference_material) + 1,] = c("Incremental", 0)
+data_preference_material[nrow(data_preference_material) + 1,] = c("Focus\nBased", 0)
+data_preference_material$participants <- as.integer(data_preference_material$participants)
+
+pref_plot_Mat <- ggplot(data_preference_material, aes(x=preference_material, y = participants, fill=preference_material)) + 
+  geom_bar(stat = "identity") + 
+  theme_classic(base_size=16) + 
+  theme(legend.position = "bottom", legend.direction = "horizontal") +
+  labs(title="Material Edits", fill="Method")+xlab("Preference")+ylab("Number of Participants")+
+  scale_fill_manual(values=color_methods, drop=FALSE) +
+  #scale_x_discrete(drop=FALSE) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 3), breaks=c(0,1,2,3))
+pref_plot_Mat
+ggsave(paste0(out_path, "preference_Mat", file_ending), width=10, height=10)
+
+data_preference_translation <- data_relevant["preference_translation"]
+data_preference_translation["participants"] = 1:nrow(data_preference_translation)
+data_preference_translation <- aggregate(participants~preference_translation,data_preference_translation,length)
+data_preference_translation$preference_translation <- factor(c("Indirection\nAware", "Focus\nBased"), levels=method_labels)
+data_preference_translation[nrow(data_preference_translation) + 1,] = c("Incremental", 0)
+data_preference_translation$participants <- as.integer(data_preference_translation$participants)
+
+pref_plot_Trans <- ggplot(data_preference_translation, aes(x=preference_translation, y = participants, fill=preference_translation)) + 
+  geom_bar(stat = "identity") + 
+  theme_classic(base_size=16) + 
+  theme(legend.position = "bottom", legend.direction = "horizontal") +
+  labs(title="Translation Edits", fill="Method")+xlab("Preference")+ylab("Number of Participants")+
+  scale_fill_manual(values=color_methods, drop=FALSE) +
+  #scale_x_discrete(drop=FALSE) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 3), breaks=c(0,1,2,3))
+pref_plot_Trans
+ggsave(paste0(out_path, "preference_Trans", file_ending), width=10, height=10)
+
+data_preference_light <- data_relevant["preference_light"]
+data_preference_light["participants"] = 1:nrow(data_preference_light)
+data_preference_light <- aggregate(participants~preference_light,data_preference_light,length)
+data_preference_light$preference_light <- factor(c("Focus\nBased"), levels=method_labels)
+data_preference_light[nrow(data_preference_light) + 1,] = c("Incremental", 0)
+data_preference_light[nrow(data_preference_light) + 1,] = c("Indirection\nAware", 0)
+data_preference_light$participants <- as.integer(data_preference_light$participants)
+
+pref_plot_Light <- ggplot(data_preference_light, aes(x=preference_light, y = participants, fill=preference_light)) + 
+  geom_bar(stat = "identity") + 
+  theme_classic(base_size=16) + 
+  theme(legend.position = "bottom", legend.direction = "horizontal") +
+  labs(title="Light Edits", fill="Method")+xlab("Preference")+ylab("Number of Participants")+
+  scale_fill_manual(values=color_methods, drop=FALSE) +
+  #scale_x_discrete(drop=FALSE) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 3), breaks=c(0,1,2,3))
+pref_plot_Light
+ggsave(paste0(out_path, "preference_Light", file_ending), width=10, height=10)
+
+margins <- list(c(0,30,0,0), c(0,30,0,0), c(0,0,0,0), c(0,0,0,30))
+combined_plots <- pref_plot_Mat + theme(plot.margin = unit(margins[[i]], "pt"))
+combined_plots <- combined_plots | (pref_plot_Trans + theme(plot.margin = unit(margins[[i]], "pt")))
+combined_plots <- combined_plots | (pref_plot_Light + theme(plot.margin = unit(margins[[i]], "pt")))
+combined_plots <- combined_plots | (pref_plot + theme(plot.margin = unit(margins[[i]], "pt")))
+combined_plots <- combined_plots / guide_area()
+grid <- combined_plots +
+  plot_layout(guides = "collect", heights = c(3, 1))
+grid
+ggsave(paste0(out_path, "preference", file_ending), width=16, height=5)
+
+
+
 
 data_majority <- data.frame(participants=c(aggregate(participant~fav_overall,tlx_favorites,length)$participant, sum(is.na(tlx_favorites$fav_overall))))
 data_majority["method"] <- factor(c(method_labels, "Undecided"), levels = c(method_labels, "Undecided"))
@@ -563,7 +540,8 @@ nps_plot <- ggplot(data_nps, aes(x=method, y=nps_score)) +
   geom_hline(yintercept=nps_threshold1) + 
   geom_boxplot(outlier.shape=8, size=1.5, aes(color=method)) + 
   geom_jitter(height=0.24, width=0.3, size=3, aes(color=method)) +
-  theme_classic(base_size=23) +
+  theme_classic(base_size=30) +
+  theme(legend.position = "bottom", legend.direction = "horizontal") +
   geom_text(aes(label=paste0("nps = ",nps_scores)), y=10.7,size=8) +
   labs(title="Raw Data for Net Promoter Score", color="Method") + ylab("NPS Score") + xlab("Method") +
   scale_color_manual(values=color_methods) +
@@ -747,7 +725,7 @@ ggplot_anova <- ggboxplot(anova_data_sum, x = "task", y = "values", fill = "meth
   stat_summary(aes(group=method), fun=mean, geom="point", shape=18, size=3, position=position_dodge(0.8)) +
   theme(legend.position = "bottom") +
   stat_pvalue_manual(pwc2, tip.length = 0, hide.ns = TRUE) +
-  labs( subtitle = get_test_label(res.aov, detailed = TRUE), caption = get_pwc_label(pwc2), fill="Method", title="Averaged Task Question Score by Rendering Method and Editing Scenario") +
+  labs(fill="Method", title="Averaged Task Question Score by Rendering Method and Editing Scenario") +
   xlab("Editing Scenario") + 
   ylab("Aggregated Score")
 ggplot_anova
