@@ -369,7 +369,8 @@ void tracePath(const PathTracerData pt, ShadingData sd, IBSDF bsdf, const uint s
         // Generate next path segment.
         if (!generateScatterRay(pt.params, sd, bsdf, path, path.sg)) return;
 
-        if (path.hit.getTriangleHit().instanceID.index == selectedObjectIdx)
+        uint idx = path.hit.getTriangleHit().instanceID.index;
+        if (idx == selectedObjectIdx)
         {
             indirectHit += (uint)((float)kIterationCount / (float)depth);
         }

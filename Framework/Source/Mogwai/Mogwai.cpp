@@ -671,8 +671,8 @@ namespace Mogwai
 #if ANIMATION_UI
             InteractionPass::SharedPtr ip = std::dynamic_pointer_cast<InteractionPass>(mGraphs[mActiveGraph].pGraph->getPass("InteractionPass"));
             AccumulatePass::SharedPtr ap = std::dynamic_pointer_cast<AccumulatePass>(mGraphs[mActiveGraph].pGraph->getPass("AccumulatePass"));
-            const int threshold = 1;
-            const int threshold_before = 1024;
+            const int threshold = 5000;
+            const int threshold_before = 1;
             const int frames_in_movement = 100;
             const int frames_in_rest = 100;
             const int frames_before = 1;

@@ -120,15 +120,16 @@ public:
     bool getReset() { return reset; }
     void animate(bool position) {
         logInfo("animate");
-        if (position)
+        if (position) // && animation_counter%2==0)
         {
-            selectedObj[0].mTranslation = selectedObj[0].mTranslation + float3(0, 0.005, 0);
+            selectedObj[0].mTranslation = selectedObj[0].mTranslation - float3(0, 0.005, 0);
         }
         else
         {
             float current = std::dynamic_pointer_cast<StandardMaterial>(mpScene->getMaterial(selectedObj[0].mpPixelData.materialID))->getMetallic();
             std::dynamic_pointer_cast<StandardMaterial>(mpScene->getMaterial(selectedObj[0].mpPixelData.materialID))->setMetallic(current + 0.01f);
         }
+        animation_counter++;
         mUserChangedScene = true;
     }
     bool shouldAnimate() {
@@ -215,6 +216,7 @@ private:
     uint2 mFocusPoint = uint2(960, 540);
     bool mUserChangedScene = false;
     bool backgroundPixelSelected = false;
+    uint animation_counter = 0;
 
     TransformMultiple mTranslation;
     TransformMultiple mScaling;

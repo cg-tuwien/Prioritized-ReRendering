@@ -161,7 +161,8 @@ void rayGen()
 
     if (loadShadingData(pixel, frameDim, gScene.camera, lod, sd, hit))
     {
-        if (hit.getTriangleHit().instanceID.index == SELECTED_OBJECT)
+        uint idx = hit.getTriangleHit().instanceID.index;
+        if (idx == SELECTED_OBJECT)
         {
             directHit = 1;
         }

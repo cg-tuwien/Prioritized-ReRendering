@@ -471,9 +471,9 @@ void MegakernelPathTracer::execute(RenderContext* pRenderContext, const RenderDa
 
 void MegakernelPathTracer::updatePriorityTiles(uint2 gridDim)
 {
-    /*highPriorityTiles.clear();
-    middlePriorityTiles.clear();
-    lowPriorityTiles.clear();*/
+    //highPriorityTiles.clear();
+    //middlePriorityTiles.clear();
+    //lowPriorityTiles.clear();
 
     amountShifted += shiftChange;
 

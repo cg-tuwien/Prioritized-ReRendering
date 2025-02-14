@@ -1,8 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+from matplotlib import colormaps
 import os
 import glob
 import re
+from PIL import Image
 
 
 def import_and_plot_scalar_field(number, scene):
@@ -164,7 +167,83 @@ def extract_number_from_filename(filename):
         return None, None
 
 
+def plot_scale():
+    # Generate the Viridis colormap
+    viridis = cm.get_cmap('viridis', 256)
+
+    # Create a figure and axis for the color scale
+    fig, ax = plt.subplots(figsize=(6, 0.5))
+    fig.subplots_adjust(bottom=0.5)
+
+    # Create the colorbar
+    cbar = fig.colorbar(cm.ScalarMappable(cmap=viridis), cax=ax, orientation='horizontal')
+
+    # Remove default tick labels
+    cbar.set_ticks([0,1])
+    cbar.set_ticklabels(['', ''])
+
+    # Manually add text labels at desired positions
+    ax.text(0.06, -0.85, '0 (Low)', transform=ax.transAxes, ha='center', va='center', fontsize=12)
+    ax.text(0.94, -0.85, '(High) 1', transform=ax.transAxes, ha='center', va='center', fontsize=12)
+    ax.text(0.5, -0.7, 'RMSE', transform=ax.transAxes, ha='center', va='center', fontsize=14, weight='bold')
+
+    # Remove the default colorbar label
+    cbar.set_label('')
+
+    # Display the color scale
+    plt.savefig('scale.png', bbox_inches='tight', pad_inches=0.05, )
+    plt.show()
+
+
+# Function to compute the pixelwise MSE
+def compute_mse(image1_path, image2_path, output_path, colormap='viridis'):
+    # Load the two images
+    img1 = Image.open(image1_path)
+    img2 = Image.open(image2_path)
+
+    # Convert the images to grayscale
+    img1_gray = img1.convert("L")  # "L" mode means grayscale
+    img2_gray = img2.convert("L")
+
+    # Convert grayscale images to numpy arrays
+    img1_array = np.array(img1_gray)
+    img2_array = np.array(img2_gray)
+
+    # Compute the pixelwise MSE (Mean Squared Error)
+    mse = np.square(img1_array - img2_array)
+
+    # Compute RMSE (Root Mean Squared Error) for each pixel
+    mse_image = np.sqrt(mse)
+    print(np.max(mse_image))
+
+    # Normalize the RMSE image to the range [0, 1]
+    mse_normalized = mse_image / np.max(mse_image)  # Normalize to the range [0, 1]
+
+    # Apply the colormap to the grayscale RMSE image
+    colormap = cm.get_cmap(colormap)
+    mse_colored = colormap(mse_normalized)  # Apply the color map
+
+    # The result will have 4 channels (RGBA), remove the alpha channel and scale to [0, 255]
+    mse_colored_image = (mse_colored[:, :, :3] * 255).astype(np.uint8)  # Keep RGB channels
+
+    # Convert the color-mapped RMSE image back to a PIL image and save it
+    mse_img = Image.fromarray(mse_colored_image)
+    mse_img.save(output_path)
+
+
+def plot_error():
+    compute_mse("reference99.jpg", "global99.jpg", "error_global.jpg")
+    compute_mse("reference99.jpg", "incremental99.jpg", "error_incremental.jpg")
+    compute_mse("reference99.jpg", "focusbased99.jpg", "error_focusbased.jpg")
+    compute_mse("reference99.jpg", "1spp.jpg", "error_1spp.jpg")
+    compute_mse("reference99.jpg", "auto299.jpg", "error_auto2.jpg")
+
+
 if __name__ == "__main__":
+    #plot_scale()
+    plot_error()
+
+
     globalprio()
     spiral(53,59)
     spiral(43, 58)
